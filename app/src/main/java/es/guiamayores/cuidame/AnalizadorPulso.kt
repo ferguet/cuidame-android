@@ -75,6 +75,82 @@ class AnalizadorPulso {
     /** Como de regular late el corazon. Ver analizarRitmo. */
     enum class Ritmo { REGULAR, DUDOSO, IRREGULAR, POCOS_DATOS }
 
+    /**
+     * COMO DE QUIETO ESTA EL DEDO, AHORA MISMO.
+     *
+     * Esto no mide salud, mide si la medicion sirve. Y es util justo
+     * porque se ve EN DIRECTO: la persona corrige el dedo mientras mide,
+     * en vez de enterarse a los treinta segundos de que no valia.
+     *
+     * Se deduce de la deriva del brillo. El latido es un temblor pequeño y
+     * rapido sobre un brillo estable; si el dedo se mueve, el brillo de
+     * fondo se va hacia arriba o hacia abajo, y ese desplazamiento es
+     * mucho mayor que el propio latido. Comparando la primera mitad del
+     * ultimo segundo con la segunda se ve al momento.
+     */
+    enum class Firmeza { BIEN, REGULAR, MAL, SIN_DEDO }
+
+    /** Un trozo de la onda para dibujar, ya limpia de deriva. */
+    class Onda(val puntos: FloatArray, val picos: IntArray)
+
+    /** Como de firme esta el dedo en este instante. */
+    fun firmezaActual(): Firmeza {
+        if (valores.size < 40) return Firmeza.SIN_DEDO
+        val ultimos = valores.takeLast(60)
+        val media = ultimos.average()
+        val desv = sqrt(ultimos.sumOf { (it - media) * (it - media) } / ultimos.size)
+
+        // Señal casi plana: o no hay dedo, o esta apretando tanto que
+        // corta el riego y ya no pasa sangre que medir.
+        if (desv < 0.12) return Firmeza.SIN_DEDO
+
+        val mitad = ultimos.size / 2
+        val primera = ultimos.take(mitad).average()
+        val segunda = ultimos.takeLast(mitad).average()
+        val deriva = abs(segunda - primera)
+
+        return when {
+            deriva > 3.0 -> Firmeza.MAL
+            deriva > 1.0 -> Firmeza.REGULAR
+            else -> Firmeza.BIEN
+        }
+    }
+
+    /**
+     * Devuelve el ultimo trozo de onda, ya sin deriva, con los latidos
+     * marcados. Es lo que se dibuja en pantalla.
+     */
+    fun ondaReciente(cuantos: Int = 160): Onda {
+        if (valores.size < 20) return Onda(FloatArray(0), IntArray(0))
+        val trozo = valores.takeLast(cuantos)
+
+        // Misma idea que en calcular(): quitar el vaiven lento para que se
+        // vea el latido, que es lo pequeño y rapido.
+        val ventana = 12
+        val limpio = FloatArray(trozo.size)
+        for (i in trozo.indices) {
+            var suma = 0.0; var n = 0
+            for (j in maxOf(0, i - ventana)..minOf(trozo.size - 1, i + ventana)) {
+                suma += trozo[j]; n++
+            }
+            limpio[i] = (trozo[i] - suma / n).toFloat()
+        }
+
+        val media = limpio.average()
+        val desv = sqrt(limpio.sumOf { (it - media) * (it - media) } / limpio.size)
+        val umbral = desv * 0.6
+
+        val picos = ArrayList<Int>()
+        var ultimo = -99
+        for (i in 1 until limpio.size - 1) {
+            if (limpio[i] > umbral && limpio[i] >= limpio[i - 1] && limpio[i] >= limpio[i + 1]) {
+                // Al menos 8 muestras de separacion (~0,25 s a 30 por segundo)
+                if (i - ultimo > 8) { picos.add(i); ultimo = i }
+            }
+        }
+        return Onda(limpio, picos.toIntArray())
+    }
+
     data class Resultado(
         val pulsaciones: Int,
         val rmssd: Double,

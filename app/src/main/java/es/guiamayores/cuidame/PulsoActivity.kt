@@ -61,6 +61,8 @@ class PulsoActivity : AppCompatActivity() {
     private lateinit var progreso: TextView
     private lateinit var resultado: TextView
     private lateinit var botonar: Button
+    private lateinit var grafica: GraficaPulso
+    private lateinit var aviso: TextView
 
     private var midiendo = false
     private var arrancado = 0L
@@ -92,9 +94,24 @@ class PulsoActivity : AppCompatActivity() {
         )
         col.addView(instruccion)
 
+        // La onda en directo. Se ve lo mismo que ve el analizador, y el
+        // color del recuadro dice si el dedo esta quieto.
+        grafica = GraficaPulso(this).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, 420
+            ).apply { topMargin = 24; bottomMargin = 12 }
+        }
+        col.addView(grafica)
+
+        aviso = t("", 19f, Color.parseColor("#9AA4B2"), true).apply {
+            gravity = Gravity.CENTER
+            setPadding(20, 18, 20, 18)
+        }
+        col.addView(aviso)
+
         progreso = t("", 26f, Color.parseColor("#FBBF24"), true).apply {
             gravity = Gravity.CENTER
-            setPadding(0, 30, 0, 30)
+            setPadding(0, 22, 0, 22)
         }
         col.addView(progreso)
 
@@ -299,6 +316,8 @@ class PulsoActivity : AppCompatActivity() {
         // dedo. No se guardan: estarian llenos de los ajustes automaticos.
         if (transcurrido < 3) {
             progreso.text = "Preparando… no mueva el dedo"
+            aviso.text = "Ajustando la cámara a su dedo…"
+            aviso.setTextColor(Color.parseColor("#94A3B8"))
             return
         }
         if (!exposicionBloqueada) {
@@ -309,15 +328,14 @@ class PulsoActivity : AppCompatActivity() {
         analizador.añadir(brillo, ahora)
         val seg = analizador.segundosGrabados()
 
+        // La onda y el color, en directo. Asi la persona corrige el dedo
+        // mientras mide, en vez de enterarse al final de que no valia.
+        val firmeza = analizador.firmezaActual()
+        grafica.actualizar(analizador.ondaReciente(), firmeza)
+        pintarAviso(firmeza)
+
         if (seg < analizador.segundosNecesarios) {
             progreso.text = "Midiendo…  $seg de ${analizador.segundosNecesarios} segundos"
-            // Aviso temprano si el dedo no esta bien puesto: mejor decirlo
-            // a los 8 segundos que dejarle esperar 20 para nada.
-            if (seg > 8 && analizador.calcular() == null) {
-                instruccion.text = "No le encuentro el pulso. Tape la cámara del todo " +
-                                   "con la yema, sin apretar fuerte, y no mueva el dedo."
-                instruccion.setTextColor(Color.parseColor("#FBBF24"))
-            }
             return
         }
 
@@ -328,6 +346,35 @@ class PulsoActivity : AppCompatActivity() {
         }
         mostrar(r)
         parar(false)
+    }
+
+    /**
+     * El semaforo, en palabras ademas de en color.
+     *
+     * El color solo no basta: hay quien no distingue bien verde de rojo, y
+     * hay quien lo ve pero no sabe que hacer con esa informacion. Cada
+     * color va acompañado de la instruccion concreta.
+     */
+    private fun pintarAviso(f: AnalizadorPulso.Firmeza) {
+        when (f) {
+            AnalizadorPulso.Firmeza.BIEN -> {
+                aviso.text = "🟢 Perfecto. No mueva el dedo."
+                aviso.setTextColor(Color.parseColor("#22C55E"))
+            }
+            AnalizadorPulso.Firmeza.REGULAR -> {
+                aviso.text = "🟠 Se le mueve un poco el dedo. Apoye la mano en la mesa."
+                aviso.setTextColor(Color.parseColor("#F59E0B"))
+            }
+            AnalizadorPulso.Firmeza.MAL -> {
+                aviso.text = "🔴 Se mueve mucho. Esta lectura no valdrá: quédese quieto."
+                aviso.setTextColor(Color.parseColor("#EF4444"))
+            }
+            AnalizadorPulso.Firmeza.SIN_DEDO -> {
+                aviso.text = "⚪ No le veo el pulso. Tape la cámara entera con la yema, " +
+                             "apoyada pero sin apretar."
+                aviso.setTextColor(Color.parseColor("#94A3B8"))
+            }
+        }
     }
 
     private fun mostrar(r: AnalizadorPulso.Resultado) {
