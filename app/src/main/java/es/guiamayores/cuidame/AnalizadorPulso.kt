@@ -82,7 +82,8 @@ class AnalizadorPulso {
         val calidad: Double,
         val ritmo: Ritmo,
         val irregularidad: Double,   // RMSSD relativo al intervalo medio
-        val saltos: Double           // proporcion de latidos que "dan un salto"
+        val saltos: Double,          // proporcion de latidos que "dan un salto"
+        val latidosPerdidos: Double  // proporcion de huecos que parecen latidos no vistos
     )
 
     /**
@@ -168,11 +169,37 @@ class AnalizadorPulso {
             if (abs(intervalos[i] - intervalos[i - 1]) > 50.0) saltos++
         }
         val propSaltos = saltos.toDouble() / (intervalos.size - 1)
-        val ritmo = analizarRitmo(irregularidad, propSaltos, intervalos.size, calidad)
+        // 7. ¿SE ME HAN ESCAPADO LATIDOS?
+        //
+        // ESTE ES EL FILTRO MAS IMPORTANTE DE TODO EL ANALISIS, y nacio de
+        // una lectura real que salio "49 pulsaciones e irregular".
+        //
+        // Si el dedo esta flojo o se mueve, algun latido se pierde. Y un
+        // latido perdido no deja un hueco cualquiera: deja un hueco que
+        // mide JUSTO EL DOBLE, porque abarca dos latidos en vez de uno.
+        //
+        // Eso produce exactamente la firma que se vio: las pulsaciones
+        // bajan (se cuentan menos latidos de los que hubo) y la
+        // irregularidad se dispara (un hueco doble entre huecos normales
+        // parece un desorden tremendo). O sea que un dedo mal apoyado se
+        // disfraza de arritmia. Inaceptable en algo que va a decirle a una
+        // persona mayor que vaya al medico.
+        //
+        // Buscando huecos que midan cerca del doble de lo normal se
+        // distingue una cosa de la otra: en una arritmia de verdad los
+        // intervalos son dispares SIN seguir ese patron de "el doble".
+        val ordenados = intervalos.sorted()
+        val mediana = ordenados[ordenados.size / 2]
+        val sospechosos = intervalos.count { it > mediana * 1.7 && it < mediana * 2.4 }
+        val propPerdidos = sospechosos.toDouble() / intervalos.size
+
+        val ritmo = analizarRitmo(
+            irregularidad, propSaltos, intervalos.size, calidad, propPerdidos
+        )
 
         return Resultado(
             bpm, rmssd, intervalos.size + 1, calidad,
-            ritmo, irregularidad, propSaltos
+            ritmo, irregularidad, propSaltos, propPerdidos
         )
     }
 
@@ -229,11 +256,17 @@ class AnalizadorPulso {
         irregularidad: Double,
         saltos: Double,
         nIntervalos: Int,
-        calidad: Double
+        calidad: Double,
+        latidosPerdidos: Double
     ): Ritmo {
         // Con pocos latidos o con una lectura sucia no se opina: seria
         // irresponsable dar un susto por un dedo mal apoyado.
         if (nIntervalos < 20 || calidad < 0.5) return Ritmo.POCOS_DATOS
+
+        // Y si hay pinta de que se han escapado latidos, TAMPOCO se opina.
+        // Preferimos pedir que repita la medicion a mandar a alguien al
+        // medico por un dedo flojo. Ver el punto 7 de calcular().
+        if (latidosPerdidos > 0.10) return Ritmo.POCOS_DATOS
 
         val muyVariable = irregularidad > 0.12
         val muchosSaltos = saltos > 0.40

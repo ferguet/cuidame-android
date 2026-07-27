@@ -334,6 +334,13 @@ class PulsoActivity : AppCompatActivity() {
         progreso.text = ""
 
         val comentarioPulso = when {
+            // Por debajo de 50 conviene decir algo mas concreto, pero sin
+            // alarmar: en gente que hace deporte o toma ciertas pastillas
+            // para el corazon o la tension es de lo mas normal.
+            r.pulsaciones < 50 -> "Es un pulso lento. En personas que hacen deporte, o " +
+                                  "que toman pastillas para el corazón o la tensión, es " +
+                                  "normal. Si le sale así varias veces y además se marea " +
+                                  "o se cansa mucho, coménteselo a su médico."
             r.pulsaciones < 60 -> "Por debajo de lo corriente en reposo. En personas " +
                                   "que hacen ejercicio es normal."
             r.pulsaciones <= 100 -> "Dentro de lo corriente en reposo."
@@ -375,8 +382,15 @@ class PulsoActivity : AppCompatActivity() {
                 "\"quiero que me hagan un electrocardiograma, me sale el pulso irregular\". " +
                 "No es una urgencia si se encuentra bien, pero no lo deje pasar."
             AnalizadorPulso.Ritmo.POCOS_DATOS ->
-                "Del compás del corazón no puedo opinar con esta lectura. " +
-                "Repítala con el dedo bien quieto."
+                if (r.latidosPerdidos > 0.10)
+                    "⚪ Se me han escapado latidos, así que del compás no opino.\n\n" +
+                    "Cuando el dedo está flojo o se mueve, pierdo algún latido y " +
+                    "entonces las pulsaciones salen más bajas de lo real y el ritmo " +
+                    "parece desordenado sin serlo. Tape la cámara del todo con la yema, " +
+                    "apoyada pero sin apretar, y repita sin mover la mano."
+                else
+                    "⚪ Del compás del corazón no puedo opinar con esta lectura. " +
+                    "Repítala con el dedo bien quieto."
         }
 
         resultado.text = "$textoRitmo\n\n" +
