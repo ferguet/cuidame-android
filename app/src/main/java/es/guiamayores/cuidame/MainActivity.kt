@@ -97,6 +97,12 @@ class MainActivity : AppCompatActivity() {
         col.addView(boton("Guardar", Color.parseColor("#1D4ED8")) { guardar() })
 
         col.addView(hueco(40))
+        col.addView(texto("SALUD", 14f, Color.parseColor("#9AA4B2")))
+        col.addView(boton("Medir el pulso y la tensión", Color.parseColor("#7C2D6E")) {
+            startActivity(Intent(this, PulsoActivity::class.java))
+        })
+
+        col.addView(hueco(40))
         col.addView(texto("PERMISOS", 14f, Color.parseColor("#9AA4B2")))
         permisos = texto("", 16f, Color.parseColor("#9AA4B2"))
         col.addView(permisos)

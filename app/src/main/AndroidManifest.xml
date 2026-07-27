@@ -39,7 +39,14 @@
          se apaga por la noche y amanece sin vigilar es una trampa. -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
+    <!-- Solo para medir el pulso apoyando el dedo en la lente. La imagen
+         nunca se enseña, no se graba y no sale del movil: de cada foto se
+         saca un unico numero -el brillo medio- y se tira al instante. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+
     <uses-feature android:name="android.hardware.sensor.accelerometer" android:required="true" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.camera.flash" android:required="false" />
 
     <application
         android:label="Cuídame"
@@ -75,6 +82,11 @@
              por que, y ajustar los umbrales a ciegas es perder el tiempo. -->
         <activity
             android:name=".DiagnosticoActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
+
+        <activity
+            android:name=".PulsoActivity"
             android:exported="false"
             android:screenOrientation="portrait" />
 
