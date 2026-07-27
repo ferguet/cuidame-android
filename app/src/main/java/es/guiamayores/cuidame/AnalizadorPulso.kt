@@ -41,8 +41,16 @@ class AnalizadorPulso {
     private val valores = ArrayList<Double>()
     private val tiempos = ArrayList<Long>()
 
-    /** Minimo de segundos antes de dar un resultado con sentido. */
-    val segundosNecesarios = 20
+    /**
+     * Minimo de segundos antes de dar un resultado con sentido.
+     *
+     * Para contar pulsaciones bastarian 15. Son 30 por lo del ritmo: para
+     * decir si el corazon late a destiempo hacen falta bastantes latidos
+     * seguidos, porque con pocos, una respiracion profunda o un par de
+     * latidos adelantados ya parecen un desorden. Medio minuto de dedo
+     * quieto es poco pedir para lo que se saca a cambio.
+     */
+    val segundosNecesarios = 30
 
     fun limpiar() {
         valores.clear()
@@ -64,11 +72,17 @@ class AnalizadorPulso {
         return ((tiempos.last() - tiempos.first()) / 1000L).toInt()
     }
 
+    /** Como de regular late el corazon. Ver analizarRitmo. */
+    enum class Ritmo { REGULAR, DUDOSO, IRREGULAR, POCOS_DATOS }
+
     data class Resultado(
         val pulsaciones: Int,
         val rmssd: Double,
         val latidos: Int,
-        val calidad: Double
+        val calidad: Double,
+        val ritmo: Ritmo,
+        val irregularidad: Double,   // RMSSD relativo al intervalo medio
+        val saltos: Double           // proporcion de latidos que "dan un salto"
     )
 
     /**
@@ -147,7 +161,88 @@ class AnalizadorPulso {
         val dispersion = intervalos.map { abs(it - medio) }.average() / medio
         val calidad = (1.0 - dispersion * 2).coerceIn(0.0, 1.0)
 
-        return Resultado(bpm, rmssd, intervalos.size + 1, calidad)
+        // 6. ¿LATE REGULAR O A TROMPICONES?
+        val irregularidad = rmssd / medio
+        var saltos = 0
+        for (i in 1 until intervalos.size) {
+            if (abs(intervalos[i] - intervalos[i - 1]) > 50.0) saltos++
+        }
+        val propSaltos = saltos.toDouble() / (intervalos.size - 1)
+        val ritmo = analizarRitmo(irregularidad, propSaltos, intervalos.size, calidad)
+
+        return Resultado(
+            bpm, rmssd, intervalos.size + 1, calidad,
+            ritmo, irregularidad, propSaltos
+        )
+    }
+
+    /**
+     * ¿EL CORAZON LATE A DESTIEMPO?
+     * =============================
+     *
+     * Esta es, con diferencia, la medida mas util que se puede sacar de un
+     * dedo apoyado en una camara, y la razon por la que merece la pena
+     * todo lo anterior.
+     *
+     * QUE SE BUSCA
+     *
+     * La fibrilacion auricular es una arritmia en la que el corazon late
+     * sin ningun compas: no es que vaya rapido o lento, es que cada latido
+     * cae donde le da la gana. Importa por tres motivos que la convierten
+     * casi en el caso ideal para una app asi:
+     *
+     *   - Es frecuente en mayores: alrededor de una de cada diez personas
+     *     por encima de los ochenta.
+     *   - Muy a menudo NO SE NOTA. Mucha gente la tiene sin enterarse.
+     *   - Es una de las grandes causas de ictus, y se trata. Detectarla a
+     *     tiempo cambia el pronostico de verdad.
+     *
+     * COMO SE DISTINGUE DE UN CORAZON NORMAL
+     *
+     * Un corazon sano tambien varia -de eso va la medida de tension- pero
+     * varia con suavidad y siguiendo la respiracion. En fibrilacion, los
+     * intervalos entre latidos saltan de forma desordenada. Se miran dos
+     * cosas a la vez:
+     *
+     *   1. Cuanto varia en relacion a lo que dura un latido.
+     *   2. Que proporcion de latidos "pega un salto" respecto al anterior.
+     *
+     * SE EXIGEN LAS DOS. Con una sola habria muchas falsas alarmas: unos
+     * pocos latidos adelantados -extrasistoles, que tiene medio mundo y
+     * casi siempre son inofensivos- disparan la primera pero no la
+     * segunda.
+     *
+     * HASTA DONDE LLEGA, Y POR QUE AUN ASI MERECE LA PENA
+     *
+     * Esto NO diagnostica nada: eso lo hace un electrocardiograma. Es un
+     * cribado. Y en cribado el reparto de errores es muy favorable:
+     * decirle a alguien sano "enseñe esto a su medico" cuesta una consulta
+     * y un susto pequeño; no avisar a alguien que la tiene puede costar un
+     * ictus. Por eso el mensaje NUNCA dice "usted tiene" nada, dice
+     * "enseñeselo a su medico y pida un electrocardiograma".
+     *
+     * Los numeros de corte son aproximados y estan tomados del rango
+     * habitual en la literatura de cribado con foto-pulso. No son una
+     * verdad exacta.
+     */
+    private fun analizarRitmo(
+        irregularidad: Double,
+        saltos: Double,
+        nIntervalos: Int,
+        calidad: Double
+    ): Ritmo {
+        // Con pocos latidos o con una lectura sucia no se opina: seria
+        // irresponsable dar un susto por un dedo mal apoyado.
+        if (nIntervalos < 20 || calidad < 0.5) return Ritmo.POCOS_DATOS
+
+        val muyVariable = irregularidad > 0.12
+        val muchosSaltos = saltos > 0.40
+
+        return when {
+            muyVariable && muchosSaltos -> Ritmo.IRREGULAR
+            muyVariable || muchosSaltos -> Ritmo.DUDOSO
+            else -> Ritmo.REGULAR
+        }
     }
 
     /**

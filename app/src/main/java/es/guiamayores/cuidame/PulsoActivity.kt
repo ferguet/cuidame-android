@@ -118,10 +118,15 @@ class PulsoActivity : AppCompatActivity() {
         col.addView(botonar)
 
         col.addView(t(
-            "Esto NO es un aparato médico y no diagnostica nada. El pulso suele salir " +
-            "bastante ajustado; la tensión es orientativa y sirve para compararse " +
-            "consigo mismo en días distintos, no con otras personas. Si nota algo " +
-            "raro en su salud, hable con su médico, no con esta app.",
+            "Esto NO es un aparato médico y no diagnostica nada.\n\n" +
+            "El pulso suele salir bastante ajustado. La tensión es orientativa: sirve " +
+            "para compararse consigo mismo en días distintos, no con otras personas.\n\n" +
+            "Sobre el compás del corazón: es un aviso para que lo mire un médico, nunca " +
+            "una conclusión. Puede avisar sin que pase nada, y también puede no avisar " +
+            "habiendo algo. Si le sale irregular, no se asuste: pida cita y pida un " +
+            "electrocardiograma, que es lo único que lo dice de verdad.\n\n" +
+            "Y si en algún momento se encuentra mal —dolor en el pecho, ahogo, mareo—, " +
+            "eso no se consulta con una app: llame al 112.",
             14f, Color.parseColor("#6C7689")
         ))
 
@@ -352,14 +357,44 @@ class PulsoActivity : AppCompatActivity() {
             else -> "Lectura poco fiable: repítala sin mover el dedo"
         }
 
-        resultado.text = "${r.pulsaciones} pulsaciones por minuto\n\n" +
+        // El ritmo es lo mas importante de toda esta pantalla, asi que va
+        // primero y con las palabras mas claras que se me ocurren. Nunca
+        // se afirma que la persona tenga nada: se le manda al medico.
+        val textoRitmo = when (r.ritmo) {
+            AnalizadorPulso.Ritmo.REGULAR ->
+                "❤️ Su corazón late con buen compás."
+            AnalizadorPulso.Ritmo.DUDOSO ->
+                "🟡 He notado el pulso algo desigual.\n" +
+                "Puede no ser nada —basta con moverse un poco o respirar hondo—, " +
+                "pero repita la medición un par de veces sentado y quieto. " +
+                "Si sigue saliendo así, coménteselo a su médico."
+            AnalizadorPulso.Ritmo.IRREGULAR ->
+                "🔴 Su corazón está latiendo a destiempo.\n\n" +
+                "Esto NO es un diagnóstico y esta app no puede dárselo. " +
+                "Pero es motivo suficiente para pedir cita y decirle a su médico: " +
+                "\"quiero que me hagan un electrocardiograma, me sale el pulso irregular\". " +
+                "No es una urgencia si se encuentra bien, pero no lo deje pasar."
+            AnalizadorPulso.Ritmo.POCOS_DATOS ->
+                "Del compás del corazón no puedo opinar con esta lectura. " +
+                "Repítala con el dedo bien quieto."
+        }
+
+        resultado.text = "$textoRitmo\n\n" +
+                         "────────────\n\n" +
+                         "${r.pulsaciones} pulsaciones por minuto\n" +
                          "$comentarioPulso\n\n" +
                          "Tensión: $comentarioTension\n" +
                          "(variabilidad ${r.rmssd.toInt()} ms, ${r.latidos} latidos)\n\n" +
                          fiabilidad
         resultado.setBackgroundColor(
-            if (r.calidad > 0.4) Color.parseColor("#14301F") else Color.parseColor("#3A2A10")
+            when {
+                r.ritmo == AnalizadorPulso.Ritmo.IRREGULAR -> Color.parseColor("#4A1512")
+                r.ritmo == AnalizadorPulso.Ritmo.DUDOSO -> Color.parseColor("#3A2A10")
+                r.calidad > 0.4 -> Color.parseColor("#14301F")
+                else -> Color.parseColor("#3A2A10")
+            }
         )
+        if (r.ritmo == AnalizadorPulso.Ritmo.IRREGULAR) hablarFuerte()
         instruccion.setTextColor(Color.parseColor("#9AA4B2"))
         instruccion.text = "Para comparar de verdad, mídase siempre en las mismas " +
                            "condiciones: sentado, tranquilo y a la misma hora."
@@ -386,6 +421,30 @@ class PulsoActivity : AppCompatActivity() {
         // linterna SI O SI: dejarla encendida seria alarmante y ademas se
         // comeria la bateria.
         if (midiendo) parar(true)
+    }
+
+    /**
+     * Lee el aviso en voz alta cuando el pulso sale irregular.
+     *
+     * Mucha gente mayor ve mal la pantalla y va a leer por encima. Si hay
+     * un solo mensaje de toda la app que tiene que llegar entero, es este.
+     */
+    private fun hablarFuerte() {
+        try {
+            var tts: android.speech.tts.TextToSpeech? = null
+            tts = android.speech.tts.TextToSpeech(this) { estado ->
+                if (estado == android.speech.tts.TextToSpeech.SUCCESS) {
+                    tts?.language = java.util.Locale("es", "ES")
+                    tts?.setSpeechRate(0.9f)
+                    tts?.speak(
+                        "Atención. Le late el corazón a destiempo. No es una urgencia " +
+                        "si se encuentra bien, pero pida cita con su médico y dígale " +
+                        "que quiere un electrocardiograma.",
+                        android.speech.tts.TextToSpeech.QUEUE_FLUSH, null, "ritmo"
+                    )
+                }
+            }
+        } catch (e: Exception) {}
     }
 
     private fun t(s: String, tam: Float, color: Int, negrita: Boolean = false) =
