@@ -1,14 +1,9 @@
 package es.guiamayores.cuidame
 
 import android.graphics.Color
-import android.media.AudioManager
-import android.media.RingtoneManager
 import android.os.Build
 import android.os.Bundle
 import android.os.CountDownTimer
-import android.os.VibrationEffect
-import android.os.Vibrator
-import android.os.VibratorManager
 import android.speech.tts.TextToSpeech
 import android.view.Gravity
 import android.view.ViewGroup
@@ -74,8 +69,6 @@ class AlarmaActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private var voz: TextToSpeech? = null
     private var vozLista = false
     private var cuenta: CountDownTimer? = null
-    private var vibrador: Vibrator? = null
-    private var tono: android.media.Ringtone? = null
     private var yaResuelto = false
 
     private lateinit var titulo: TextView
@@ -182,42 +175,16 @@ class AlarmaActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         setContentView(raiz)
     }
 
+    /**
+     * El ruido lo lleva Sirena, que es compartida con el servicio.
+     *
+     * Cuando el movil esta bloqueado, el servicio ya la ha puesto a sonar
+     * antes de que esta pantalla exista -puede incluso que esta pantalla
+     * no llegue a salir-. Aqui solo nos aseguramos de que suene, sin
+     * duplicarla: si ya sonaba, Sirena no hace nada.
+     */
     private fun empezarRuido() {
-        try {
-            val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
-                ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-            tono = RingtoneManager.getRingtone(applicationContext, uri)?.apply {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                    audioAttributes = android.media.AudioAttributes.Builder()
-                        .setUsage(android.media.AudioAttributes.USAGE_ALARM)
-                        .build()
-                }
-                play()
-            }
-            // Sube el volumen de alarma: si el movil esta en silencio, una
-            // alarma que no se oye no sirve para nada.
-            val am = getSystemService(AUDIO_SERVICE) as AudioManager
-            am.setStreamVolume(
-                AudioManager.STREAM_ALARM,
-                am.getStreamMaxVolume(AudioManager.STREAM_ALARM), 0
-            )
-        } catch (e: Exception) {}
-
-        try {
-            vibrador = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                (getSystemService(VIBRATOR_MANAGER_SERVICE) as VibratorManager).defaultVibrator
-            } else {
-                @Suppress("DEPRECATION")
-                getSystemService(VIBRATOR_SERVICE) as Vibrator
-            }
-            val patron = longArrayOf(0, 600, 400, 600, 400)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                vibrador?.vibrate(VibrationEffect.createWaveform(patron, 0))
-            } else {
-                @Suppress("DEPRECATION")
-                vibrador?.vibrate(patron, 0)
-            }
-        } catch (e: Exception) {}
+        Sirena.sonar(this)
     }
 
     private fun empezarCuenta() {
@@ -283,8 +250,13 @@ class AlarmaActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
     private fun parar() {
         cuenta?.cancel()
-        try { tono?.stop() } catch (e: Exception) {}
-        try { vibrador?.cancel() } catch (e: Exception) {}
+        Sirena.callar()
+        // Se quita tambien el aviso de la barra: si no, se queda ahi
+        // sonando visualmente cuando ya se ha resuelto.
+        try {
+            (getSystemService(NOTIFICATION_SERVICE) as android.app.NotificationManager)
+                .cancel(ServicioVigilancia.ID_ALARMA)
+        } catch (e: Exception) {}
     }
 
     private fun hablar(frase: String) {

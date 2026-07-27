@@ -53,7 +53,9 @@ class ServicioVigilancia : Service(), SensorEventListener {
 
     companion object {
         const val CANAL = "cuidame_vigilancia"
+        const val CANAL_ALARMA = "cuidame_alarma"
         const val ID_AVISO = 1
+        const val ID_ALARMA = 2
         const val ACCION_PARAR = "es.guiamayores.cuidame.PARAR"
 
         /**
@@ -184,24 +186,87 @@ class ServicioVigilancia : Service(), SensorEventListener {
         }
     }
 
+    /**
+     * DISPARAR LA ALARMA CON EL MOVIL BLOQUEADO
+     *
+     * Aqui estaba el fallo mas grave que ha tenido esta app: con la
+     * pantalla apagada no avisaba hasta que alguien desbloqueaba el
+     * movil. O sea, justo en la situacion real -el movil en el bolsillo
+     * de alguien que se ha caido- no servia para nada.
+     *
+     * El motivo: desde Android 10 una app NO puede abrir una pantalla
+     * estando en segundo plano. Android se la guarda y la enseña cuando
+     * el usuario vuelve. Es una proteccion razonable contra apps que
+     * asaltan la pantalla, pero deja fuera a las alarmas de verdad.
+     *
+     * La via correcta -la misma que usan los despertadores y las
+     * llamadas entrantes- es una notificacion "de pantalla completa".
+     * Android SI la deja saltar sobre la pantalla de bloqueo.
+     *
+     * Y por si acaso, primero se hace sonar la sirena. Aunque el sistema
+     * no dejara pintar nada, el movil suena. Que suene importa mas que
+     * lo que se vea: lo oye la persona y lo oye quien este en la casa.
+     */
     private fun dispararAlarma(motivo: String) {
         rearmarDesde = System.currentTimeMillis() + 4000L
+        detector.reiniciar()
+        detector.marcarMovimiento()
+
+        Sirena.sonar(this)
+
         val i = Intent(this, AlarmaActivity::class.java).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
             putExtra(AlarmaActivity.EXTRA_MOTIVO, motivo)
         }
-        startActivity(i)
-        detector.reiniciar()
-        detector.marcarMovimiento()
+        val pi = PendingIntent.getActivity(
+            this, 1, i,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+
+        val aviso = NotificationCompat.Builder(this, CANAL_ALARMA)
+            .setContentTitle("¿Está usted bien?")
+            .setContentText("Toque aquí. Si no contesta, avisaré a su contacto.")
+            .setSmallIcon(android.R.drawable.ic_dialog_alert)
+            .setPriority(NotificationCompat.PRIORITY_MAX)
+            .setCategory(NotificationCompat.CATEGORY_ALARM)
+            .setOngoing(true)
+            .setAutoCancel(false)
+            .setContentIntent(pi)
+            .setFullScreenIntent(pi, true)   // esto es lo que la saca sobre el bloqueo
+            .build()
+
+        try {
+            (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
+                .notify(ID_ALARMA, aviso)
+        } catch (e: Exception) {}
+
+        // Y ademas se intenta abrir directamente: si la app estaba en
+        // primer plano, asi sale al instante sin pasar por el aviso.
+        try { startActivity(i) } catch (e: Exception) {}
     }
 
     private fun crearCanal() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+
             val canal = NotificationChannel(
                 CANAL, "Vigilancia", NotificationManager.IMPORTANCE_LOW
             ).apply { description = "Aviso permanente mientras la app vigila" }
-            (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
-                .createNotificationChannel(canal)
+            nm.createNotificationChannel(canal)
+
+            // Canal aparte para la alarma, con importancia MAXIMA. Sin
+            // esto Android no deja que la notificacion salte sola sobre
+            // la pantalla de bloqueo, y volveriamos al problema de que no
+            // avisa hasta desbloquear.
+            val alarma = NotificationChannel(
+                CANAL_ALARMA, "Alarma de caída", NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "Salta cuando se detecta una caída"
+                setBypassDnd(true)          // suena aunque este en 'no molestar'
+                lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
+                enableVibration(true)
+            }
+            nm.createNotificationChannel(alarma)
         }
     }
 

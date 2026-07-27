@@ -26,6 +26,15 @@
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.VIBRATE" />
 
+    <!-- LA CLAVE PARA QUE AVISE CON EL MOVIL BLOQUEADO.
+         Desde Android 10 una app no puede abrir una pantalla estando en
+         segundo plano: el sistema la guarda y la enseña al desbloquear.
+         Este permiso es el que usan los despertadores y las llamadas
+         entrantes para saltarse esa regla de forma legitima. Sin el, la
+         app no avisaba hasta que alguien desbloqueaba el movil, que es
+         justo cuando ya no hace falta. -->
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+
     <!-- Que la vigilancia vuelva sola si se reinicia el movil. Un movil que
          se apaga por la noche y amanece sin vigilar es una trampa. -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
