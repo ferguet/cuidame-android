@@ -42,6 +42,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var cPersona: EditText
     private lateinit var cNombre: EditText
     private lateinit var cTelefono: EditText
+    private lateinit var permisos: TextView
 
     private val PERMISOS = 100
 
@@ -95,6 +96,27 @@ class MainActivity : AppCompatActivity() {
 
         col.addView(boton("Guardar", Color.parseColor("#1D4ED8")) { guardar() })
 
+        col.addView(hueco(40))
+        col.addView(texto("PERMISOS", 14f, Color.parseColor("#9AA4B2")))
+        permisos = texto("", 16f, Color.parseColor("#9AA4B2"))
+        col.addView(permisos)
+
+        // Si el permiso se rechaza dos veces, Android DEJA DE PREGUNTAR y
+        // el boton normal ya no hace nada. La unica salida es ir a los
+        // ajustes de la app a mano, y encontrarlos no es evidente. Este
+        // boton lleva directo.
+        col.addView(boton("Abrir los permisos de la app", Color.parseColor("#1D4ED8")) {
+            try {
+                startActivity(Intent(
+                    android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                    android.net.Uri.parse("package:$packageName")
+                ))
+            } catch (e: Exception) {
+                Toast.makeText(this, "Abra Ajustes > Aplicaciones > Cuídame > Permisos",
+                    Toast.LENGTH_LONG).show()
+            }
+        })
+
         col.addView(hueco(44))
         col.addView(texto("PROBARLO SIN CAERSE", 14f, Color.parseColor("#9AA4B2")))
         col.addView(texto(
@@ -138,6 +160,17 @@ class MainActivity : AppCompatActivity() {
 
     private fun refrescar() {
         val activa = ajustes.vigilanciaActiva && ajustes.estaConfigurada()
+
+        val sms = tienePermiso(Manifest.permission.SEND_SMS)
+        val ubi = tienePermiso(Manifest.permission.ACCESS_FINE_LOCATION) ||
+                  tienePermiso(Manifest.permission.ACCESS_COARSE_LOCATION)
+        permisos.text = buildString {
+            append(if (sms) "✅ Mensajes: puede avisar\n" else "❌ Mensajes: NO podrá avisar a nadie\n")
+            append(if (ubi) "✅ Ubicación: dirá dónde está" else "⚠️ Ubicación: el aviso irá sin el sitio")
+        }
+        permisos.setTextColor(
+            if (sms) Color.parseColor("#9AA4B2") else Color.parseColor("#F87171")
+        )
 
         // Se comprueba que el servicio este VIVO, no solo que el ajuste
         // diga que si. Si Android lo mato o no llego a arrancar, decir
@@ -187,13 +220,29 @@ class MainActivity : AppCompatActivity() {
             ajustes.vigilanciaActiva = false
             ServicioVigilancia.parar(this)
         } else {
-            if (!tienePermiso(Manifest.permission.SEND_SMS)) {
-                Toast.makeText(this, "Hace falta permiso para enviar mensajes", Toast.LENGTH_LONG).show()
-                pedirPermisos()
-                return
-            }
+            // ANTES AQUI SE BLOQUEABA TODO SI FALTABA EL PERMISO DE SMS.
+            //
+            // Era un error de bulto: sin ese permiso la app se negaba a
+            // vigilar, asi que no detectaba caidas, no sonaba la alarma y
+            // no hacia absolutamente nada. Y el permiso de mensajes es
+            // justo el que mas se atasca, porque si se rechaza dos veces
+            // Android deja de preguntar y hay que ir a mano a los ajustes.
+            //
+            // Vigilar y avisar son dos cosas distintas. Sin SMS se pierde
+            // el aviso a la familia, pero la deteccion, la alarma sonando
+            // y la pantalla pidiendo ayuda siguen funcionando, y eso ya
+            // sirve de algo si hay alguien cerca en la casa. Se avisa de
+            // la limitacion, pero no se apaga todo por ella.
             ajustes.vigilanciaActiva = true
             ServicioVigilancia.arrancar(this)
+            if (!tienePermiso(Manifest.permission.SEND_SMS)) {
+                Toast.makeText(
+                    this,
+                    "Vigilando, pero SIN poder avisar por mensaje. Dé el permiso abajo.",
+                    Toast.LENGTH_LONG
+                ).show()
+                pedirPermisos()
+            }
         }
         refrescar()
     }

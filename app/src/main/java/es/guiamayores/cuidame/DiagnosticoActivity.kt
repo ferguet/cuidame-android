@@ -103,6 +103,23 @@ class DiagnosticoActivity : AppCompatActivity(), SensorEventListener {
             14f, Color.parseColor("#6C7689")
         ))
 
+        // ---- QUE SENSORES TIENE ESTE MOVIL ----
+        //
+        // Los moviles que usan las personas mayores suelen ser baratos o
+        // viejos, y no todos traen los mismos sensores. Dar por hecho que
+        // estan es justo el error que hace que una app "funcione en mi
+        // movil" y no en el de la persona a la que iba dirigida. Peor
+        // aun: la app parecería estar cuidando a alguien sin poder
+        // hacerlo. Aqui se ve de un vistazo, sin instalar nada mas.
+        col.addView(hueco(28))
+        col.addView(t("QUÉ SENSORES TIENE ESTE MÓVIL", 13f, Color.parseColor("#9AA4B2")))
+        col.addView(t(inventarioSensores(), 16f, Color.WHITE))
+        col.addView(t(
+            "Solo el acelerómetro es imprescindible. Los demás no hacen falta hoy, " +
+            "pero saber si están dice qué se le puede pedir a este móvil más adelante.",
+            14f, Color.parseColor("#6C7689")
+        ))
+
         col.addView(hueco(24))
         col.addView(t("QUÉ ESTÁ HACIENDO EL DETECTOR", 13f, Color.parseColor("#9AA4B2")))
         estado = t("esperando", 20f, Color.WHITE, true)
@@ -205,6 +222,37 @@ class DiagnosticoActivity : AppCompatActivity(), SensorEventListener {
             if (detector.intentosDescartados > 0)
                 "\nGolpes descartados por movimiento: ${detector.intentosDescartados}"
             else ""
+    }
+
+    /**
+     * Lista los sensores que interesan y si este movil los tiene.
+     *
+     * El acelerometro va marcado aparte porque es el unico del que
+     * depende la app: sin el, "Cuídame" no puede detectar nada y hay que
+     * decirlo sin rodeos en vez de dejar que parezca que vigila.
+     */
+    private fun inventarioSensores(): String {
+        val mirar = listOf(
+            Sensor.TYPE_ACCELEROMETER to "Acelerómetro (imprescindible)",
+            Sensor.TYPE_GYROSCOPE to "Giroscopio (giro al caer)",
+            Sensor.TYPE_PRESSURE to "Barómetro (en qué planta está)",
+            Sensor.TYPE_STEP_COUNTER to "Contador de pasos",
+            Sensor.TYPE_LIGHT to "Sensor de luz",
+            Sensor.TYPE_PROXIMITY to "Sensor de proximidad",
+            Sensor.TYPE_MAGNETIC_FIELD to "Brújula"
+        )
+        val sb = StringBuilder()
+        for ((tipo, nombre) in mirar) {
+            val hay = sensores.getDefaultSensor(tipo) != null
+            sb.append(if (hay) "✅ " else "❌ ").append(nombre).append("\n")
+        }
+        val acc = sensores.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
+        if (acc == null) {
+            sb.append("\n⚠️ SIN ACELERÓMETRO ESTA APP NO PUEDE FUNCIONAR.")
+        } else {
+            sb.append("\nModelo: ").append(acc.name)
+        }
+        return sb.toString().trim()
     }
 
     private fun t(s: String, tam: Float, color: Int, negrita: Boolean = false) =
