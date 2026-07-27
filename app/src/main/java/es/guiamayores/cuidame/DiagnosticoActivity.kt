@@ -45,6 +45,7 @@ class DiagnosticoActivity : AppCompatActivity(), SensorEventListener {
     private lateinit var estado: TextView
     private lateinit var detalle: TextView
     private lateinit var resultado: TextView
+    private lateinit var umbral: TextView
 
     private var ultimoRefresco = 0L
 
@@ -75,8 +76,32 @@ class DiagnosticoActivity : AppCompatActivity(), SensorEventListener {
         pico = t("—", 46f, Color.parseColor("#FBBF24"), true)
         col.addView(pico)
 
-        col.addView(t("HACE FALTA LLEGAR A ${detector.umbralGolpe.toInt()} PARA QUE CUENTE COMO GOLPE",
-            13f, Color.parseColor("#6C7689")))
+        // El umbral se calcula contra lo que ESTE movil puede medir, no
+        // contra un numero fijo. Ver DetectorCaida.ajustarAlSensor.
+        val rango = acelerometro?.maximumRange ?: 0f
+        detector.ajustarAlSensor(rango)
+
+        umbral = t("", 13f, Color.parseColor("#6C7689"))
+        col.addView(umbral)
+
+        col.addView(hueco(16))
+        col.addView(t("LO MÁXIMO QUE PUEDE MEDIR ESTE MÓVIL", 13f, Color.parseColor("#9AA4B2")))
+        col.addView(t(
+            if (rango > 0f) String.format("%.1f", rango) + "   (unas " +
+                String.format("%.1f", rango / 9.81f) + " veces la gravedad)"
+            else "no se ha podido saber",
+            24f,
+            if (rango in 0.1f..25f) Color.parseColor("#F87171") else Color.parseColor("#4ADE80"),
+            true
+        ))
+        col.addView(t(
+            if (rango in 0.1f..25f)
+                "Este sensor se topa pronto: por muy fuerte que sea el golpe, nunca dará " +
+                "más de ese número. Por eso el umbral se ha bajado solo."
+            else
+                "Rango de sobra para medir un golpe fuerte.",
+            14f, Color.parseColor("#6C7689")
+        ))
 
         col.addView(hueco(24))
         col.addView(t("QUÉ ESTÁ HACIENDO EL DETECTOR", 13f, Color.parseColor("#9AA4B2")))
@@ -156,6 +181,8 @@ class DiagnosticoActivity : AppCompatActivity(), SensorEventListener {
     }
 
     private fun pintar() {
+        umbral.text = "HACE FALTA LLEGAR A " + String.format("%.1f", detector.umbralGolpe) +
+                      " PARA QUE CUENTE COMO GOLPE"
         fuerza.text = String.format("%.1f", detector.fuerzaActual)
         pico.text = String.format("%.1f", detector.pico)
         estado.text = detector.estado

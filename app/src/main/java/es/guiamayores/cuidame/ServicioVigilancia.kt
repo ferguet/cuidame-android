@@ -98,6 +98,11 @@ class ServicioVigilancia : Service(), SensorEventListener {
             acquire()
         }
 
+        // El umbral del golpe se ajusta a lo que ESTE movil sabe medir.
+        // Un sensor de rango corto nunca llegaria a un umbral fijo alto,
+        // y la app se pasaria la vida sin detectar nada.
+        detector.ajustarAlSensor(acelerometro?.maximumRange ?: 0f)
+
         acelerometro?.let {
             // SENSOR_DELAY_FASTEST y no GAME. El pico de un golpe dura muy
             // poco -a veces menos de 20 milisegundos-, y a 50 lecturas por

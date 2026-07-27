@@ -155,6 +155,30 @@ class DetectorCaida {
         return false
     }
 
+    /**
+     * AJUSTA EL UMBRAL A LO QUE ESTE MOVIL PUEDE MEDIR.
+     *
+     * Esto sale de una prueba real que no cuadraba: el pico maximo medido
+     * al simular una caida fue 20,2 y no subia de ahi por mucho que se
+     * insistiera. La explicacion mas probable no es que el golpe fuera
+     * flojo, sino que el acelerometro SE TOPA: muchos moviles montan un
+     * sensor de rango 2g, o sea unos 19,6, y por encima de eso ya no sabe
+     * medir. Le pidas lo que le pidas, devuelve su techo.
+     *
+     * En un movil asi, un umbral de 19 es practicamente inalcanzable, y
+     * uno de 25 -el que puse al principio- es literalmente imposible: la
+     * app nunca detectaria una caida por fuerte que fuese. Por eso el
+     * umbral no puede ser un numero fijo escrito a mano: tiene que
+     * calcularse contra lo que cada movil es capaz de ver.
+     */
+    fun ajustarAlSensor(rangoMaximo: Float) {
+        if (rangoMaximo <= 0f) return
+        if (rangoMaximo < 25f) {
+            // Sensor con poco recorrido: se pide el 80% de su techo.
+            umbralGolpe = maxOf(14f, rangoMaximo * 0.80f)
+        }
+    }
+
     /** Para cuando la persona ya ha dicho que esta bien. */
     fun reiniciar() {
         vigilandoDesde = 0L
