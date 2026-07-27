@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- ENVIAR EL AVISO.
+         Es el permiso delicado de esta app y hay que ser honesto con el:
+         permite mandar SMS sin que nadie toque la pantalla. Es justo lo
+         que hace falta, porque una persona inconsciente no puede pulsar
+         "enviar". Solo se usa en dos sitios de todo el codigo: el aviso
+         de emergencia y el boton de prueba. Nunca en segundo plano por
+         su cuenta. -->
+    <uses-permission android:name="android.permission.SEND_SMS" />
+
+    <!-- Para poder decir DONDE esta la persona en el mensaje. Sin esto el
+         aviso sirve de poco: "se ha caido" sin decir donde no ayuda. -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
+    <!-- Vigilar los sensores con la pantalla apagada. Android obliga a que
+         esto sea un servicio "en primer plano" con aviso visible, y me
+         parece bien: la persona tiene que ver siempre que la app esta
+         mirando. Nada de vigilancia escondida. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_HEALTH" />
+    <uses-permission android:name="android.permission.HIGH_SAMPLING_RATE_SENSORS" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+
+    <!-- Que la vigilancia vuelva sola si se reinicia el movil. Un movil que
+         se apaga por la noche y amanece sin vigilar es una trampa. -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
+    <uses-feature android:name="android.hardware.sensor.accelerometer" android:required="true" />
+
+    <application
+        android:label="Cuídame"
+        android:icon="@android:drawable/ic_menu_myplaces"
+        android:theme="@style/Theme.AppCompat.NoActionBar"
+        android:allowBackup="false">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:screenOrientation="portrait">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- La alarma tiene que salir SI O SI, aunque el movil este
+             bloqueado en el bolsillo y con la pantalla apagada. De ahi
+             showOnLockScreen y turnScreenOn. Y excludeFromRecents para
+             que no se quede dando vueltas en las apps recientes. -->
+        <activity
+            android:name=".AlarmaActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:showOnLockScreen="true"
+            android:turnScreenOn="true"
+            android:excludeFromRecents="true"
+            android:launchMode="singleTop" />
+
+        <service
+            android:name=".ServicioVigilancia"
+            android:exported="false"
+            android:foregroundServiceType="health" />
+
+        <receiver
+            android:name=".ArranqueReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
+    </application>
+</manifest>
