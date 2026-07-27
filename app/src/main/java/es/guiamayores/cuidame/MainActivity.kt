@@ -113,6 +113,10 @@ class MainActivity : AppCompatActivity() {
             probarMensaje()
         })
 
+        col.addView(boton("Ver los sensores en vivo", Color.parseColor("#334155")) {
+            startActivity(Intent(this, DiagnosticoActivity::class.java))
+        })
+
         col.addView(hueco(40))
         col.addView(texto(
             "Para que funcione, el móvil tiene que ir encima de la persona: " +
@@ -134,6 +138,19 @@ class MainActivity : AppCompatActivity() {
 
     private fun refrescar() {
         val activa = ajustes.vigilanciaActiva && ajustes.estaConfigurada()
+
+        // Se comprueba que el servicio este VIVO, no solo que el ajuste
+        // diga que si. Si Android lo mato o no llego a arrancar, decir
+        // "vigilando" seria mentir justo en lo que mas importa.
+        if (activa && !ServicioVigilancia.activo) {
+            estado.text = "⚠️ Debería estar vigilando, pero no lo está\n\n" +
+                          "Pulse abajo para volver a activarlo."
+            estado.setBackgroundColor(Color.parseColor("#B45309"))
+            interruptor.text = "Volver a activar"
+            interruptor.setBackgroundColor(Color.parseColor("#0B7A3B"))
+            return
+        }
+
         if (activa) {
             estado.text = "✅ Vigilando\n\nPuede guardar el móvil y olvidarse."
             estado.setBackgroundColor(Color.parseColor("#0B7A3B"))

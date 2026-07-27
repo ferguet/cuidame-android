@@ -56,6 +56,17 @@ class ServicioVigilancia : Service(), SensorEventListener {
         const val ID_AVISO = 1
         const val ACCION_PARAR = "es.guiamayores.cuidame.PARAR"
 
+        /**
+         * Si el servicio esta VIVO de verdad, no solo si el ajuste dice
+         * que si. Android puede matar un servicio, o puede fallar al
+         * arrancarlo por un permiso, y entonces la pantalla de casa diria
+         * "vigilando" mientras en realidad no vigila nada. Esa mentira es
+         * lo peor que puede hacer una app de seguridad.
+         */
+        @Volatile
+        var activo = false
+            internal set
+
         fun arrancar(contexto: Context) {
             val i = Intent(contexto, ServicioVigilancia::class.java)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -88,11 +99,15 @@ class ServicioVigilancia : Service(), SensorEventListener {
         }
 
         acelerometro?.let {
-            // SENSOR_DELAY_GAME da unas 50 lecturas por segundo: suficiente
-            // para ver el pico de un golpe sin comerse la bateria.
-            sensores.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME)
+            // SENSOR_DELAY_FASTEST y no GAME. El pico de un golpe dura muy
+            // poco -a veces menos de 20 milisegundos-, y a 50 lecturas por
+            // segundo se cuela entre dos muestras sin que lo veamos. Es una
+            // de las razones por las que la primera version no detectaba
+            // caidas. Gasta algo mas de bateria y merece la pena.
+            sensores.registerListener(this, it, SensorManager.SENSOR_DELAY_FASTEST)
         }
         detector.marcarMovimiento()
+        activo = true
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -107,6 +122,7 @@ class ServicioVigilancia : Service(), SensorEventListener {
     }
 
     override fun onDestroy() {
+        activo = false
         try { sensores.unregisterListener(this) } catch (e: Exception) {}
         try { if (wakeLock?.isHeld == true) wakeLock?.release() } catch (e: Exception) {}
         super.onDestroy()

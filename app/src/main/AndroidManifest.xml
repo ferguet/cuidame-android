@@ -61,6 +61,14 @@
             android:excludeFromRecents="true"
             android:launchMode="singleTop" />
 
+        <!-- Pantalla de taller: enseña lo que miden los sensores en vivo.
+             Sin esto, cuando la deteccion no salta no hay forma de saber
+             por que, y ajustar los umbrales a ciegas es perder el tiempo. -->
+        <activity
+            android:name=".DiagnosticoActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
+
         <service
             android:name=".ServicioVigilancia"
             android:exported="false"
