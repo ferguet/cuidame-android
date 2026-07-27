@@ -52,6 +52,23 @@ class AlarmaActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         const val EXTRA_MOTIVO = "motivo"
         const val EXTRA_PRUEBA = "prueba"
         private const val SEGUNDOS = 60
+
+        /**
+         * Si la alarma esta ahora mismo en pantalla.
+         *
+         * El servicio necesita saberlo para no lanzar una alarma encima
+         * de otra. Antes esto se resolvia con un temporizador fijo de 90
+         * segundos, y era un fallo serio: aunque la persona pulsara
+         * "estoy bien" al instante, la app se quedaba sorda minuto y
+         * medio. Una segunda caida dentro de ese rato -que es justo
+         * cuando mas probable es, porque quien se acaba de caer esta
+         * mareado o inestable- no se detectaba.
+         *
+         * Con esto, en cuanto se cierra la pantalla vuelve a vigilar.
+         */
+        @Volatile
+        var visible = false
+            private set
     }
 
     private var voz: TextToSpeech? = null
@@ -70,6 +87,7 @@ class AlarmaActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        visible = true
         mostrarAunqueEsteBloqueado()
 
         voz = TextToSpeech(this, this)
@@ -249,12 +267,18 @@ class AlarmaActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             explicacion.text = "He avisado a ${a.nombreContacto.ifBlank { "su contacto" }}.\nLa ayuda va en camino."
             hablar("He avisado a su contacto. Quédese tranquilo, la ayuda va en camino.")
         } else {
-            titulo.text = "No he podido avisar"
-            explicacion.text = "$fallo\n\nSi puede, llame usted al 112."
-            hablar("No he podido mandar el mensaje. Si puede, llame al ciento doce.")
+            titulo.text = "No he podido avisar solo"
+            explicacion.text = "$fallo\n\nLe abro los mensajes con el aviso ya escrito: " +
+                               "solo tiene que pulsar enviar. Si no puede, llame al 112."
+            hablar("No he podido mandar el mensaje solo. Le abro los mensajes con el aviso " +
+                   "escrito: pulse enviar. Si no puede, llame al ciento doce.")
+            // Plan B: al menos dejarlo escrito y listo para enviar.
+            android.os.Handler(mainLooper).postDelayed({
+                Avisador.abrirMensajeria(this, texto)
+            }, 3000)
         }
         reloj.text = ""
-        android.os.Handler(mainLooper).postDelayed({ finish() }, 9000)
+        android.os.Handler(mainLooper).postDelayed({ finish() }, 12000)
     }
 
     private fun parar() {
@@ -285,6 +309,7 @@ class AlarmaActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     override fun onBackPressed() { }
 
     override fun onDestroy() {
+        visible = false
         parar()
         voz?.stop(); voz?.shutdown()
         super.onDestroy()

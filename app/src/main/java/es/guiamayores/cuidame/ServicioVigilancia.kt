@@ -48,7 +48,7 @@ class ServicioVigilancia : Service(), SensorEventListener {
     private lateinit var ajustes: Ajustes
     private var wakeLock: PowerManager.WakeLock? = null
 
-    private var alarmaEnCurso = false
+    private var rearmarDesde = 0L
     private var ultimaComprobacionQuietud = 0L
 
     companion object {
@@ -138,9 +138,27 @@ class ServicioVigilancia : Service(), SensorEventListener {
 
     override fun onSensorChanged(evento: SensorEvent?) {
         if (evento == null || evento.sensor.type != Sensor.TYPE_ACCELEROMETER) return
-        if (alarmaEnCurso) return
 
         val ahora = System.currentTimeMillis()
+
+        // Mientras la alarma esta en pantalla no se vigila: la persona ya
+        // esta atendida. Y al cerrarse, se deja un respiro de 4 segundos
+        // para que el manoteo de pulsar el boton no cuente como caida.
+        //
+        // Antes esto era un temporizador fijo de 90 segundos, y era un
+        // fallo grave: aunque la persona dijera "estoy bien" al instante,
+        // la app se quedaba sorda minuto y medio. Justo el rato en que es
+        // mas facil volver a caerse, porque uno se levanta mareado.
+        if (AlarmaActivity.visible) {
+            rearmarDesde = ahora + 4000L
+            detector.reiniciar()
+            detector.marcarMovimiento(ahora)
+            return
+        }
+        if (ahora < rearmarDesde) {
+            detector.marcarMovimiento(ahora)
+            return
+        }
 
         if (detector.procesar(evento.values[0], evento.values[1], evento.values[2], ahora)) {
             dispararAlarma("parece que se ha caído")
@@ -167,20 +185,14 @@ class ServicioVigilancia : Service(), SensorEventListener {
     }
 
     private fun dispararAlarma(motivo: String) {
-        alarmaEnCurso = true
+        rearmarDesde = System.currentTimeMillis() + 4000L
         val i = Intent(this, AlarmaActivity::class.java).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
             putExtra(AlarmaActivity.EXTRA_MOTIVO, motivo)
         }
         startActivity(i)
-
-        // Se deja un rato de margen antes de volver a poder disparar, para
-        // que los coletazos del mismo golpe no lancen tres alarmas.
-        android.os.Handler(mainLooper).postDelayed({
-            alarmaEnCurso = false
-            detector.reiniciar()
-            detector.marcarMovimiento()
-        }, 90_000L)
+        detector.reiniciar()
+        detector.marcarMovimiento()
     }
 
     private fun crearCanal() {

@@ -62,6 +62,34 @@ object Avisador {
         }
     }
 
+    /**
+     * PLAN B: abrir la aplicacion de mensajes con el texto ya escrito.
+     *
+     * No es automatico -alguien tiene que pulsar enviar-, asi que no vale
+     * para una persona inconsciente. Pero hay dos casos en los que salva
+     * la situacion: cuando Android se niega a dar el permiso de envio
+     * automatico (pasa mas de lo que parece, sobre todo en apps que no
+     * vienen de la tienda), y cuando la persona esta consciente pero
+     * dolorida y no acierta a escribir. Mejor un mensaje que hay que
+     * confirmar que ningun mensaje.
+     */
+    fun abrirMensajeria(contexto: Context, mensaje: String): Boolean {
+        val numero = Ajustes(contexto).telefonoContacto.trim()
+        return try {
+            val i = android.content.Intent(
+                android.content.Intent.ACTION_SENDTO,
+                android.net.Uri.parse("smsto:$numero")
+            ).apply {
+                putExtra("sms_body", mensaje)
+                addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            contexto.startActivity(i)
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
+
     /** El texto del aviso de emergencia. */
     fun mensajeEmergencia(contexto: Context, motivo: String): String {
         val ajustes = Ajustes(contexto)
