@@ -106,12 +106,24 @@ class ServicioVigilancia : Service(), SensorEventListener {
         detector.ajustarAlSensor(acelerometro?.maximumRange ?: 0f)
 
         acelerometro?.let {
-            // SENSOR_DELAY_FASTEST y no GAME. El pico de un golpe dura muy
-            // poco -a veces menos de 20 milisegundos-, y a 50 lecturas por
-            // segundo se cuela entre dos muestras sin que lo veamos. Es una
-            // de las razones por las que la primera version no detectaba
-            // caidas. Gasta algo mas de bateria y merece la pena.
-            sensores.registerListener(this, it, SensorManager.SENSOR_DELAY_FASTEST)
+            // EL SEGUNDO NUMERO -el cero- ES EL QUE QUITA EL RETRASO.
+            //
+            // Con la pantalla apagada, Android agrupa las lecturas de los
+            // sensores y las entrega a ratos, en paquetes, para gastar
+            // menos bateria. Para contar pasos es perfecto; para detectar
+            // una caida es fatal: el golpe ya ha pasado y la app se entera
+            // varios segundos despues. Era la causa principal de que la
+            // alarma tardara tanto en saltar con el movil bloqueado.
+            //
+            // Ese cero es el "tiempo maximo que puedes retenerme una
+            // lectura": ninguno. Que lleguen segun ocurren.
+            //
+            // Y se baja de FASTEST a GAME (unas 50 por segundo) a
+            // proposito: con un umbral de 19 y golpes reales que pasan de
+            // 100, 50 lecturas por segundo sobran para verlo, y asi no se
+            // come la bateria de una app que tiene que aguantar todo el
+            // dia encendida.
+            sensores.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME, 0)
         }
         detector.marcarMovimiento()
         activo = true

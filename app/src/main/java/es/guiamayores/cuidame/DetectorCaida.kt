@@ -49,8 +49,22 @@ class DetectorCaida {
     /** Por encima de esto consideramos que ha habido un golpe. */
     var umbralGolpe = 19f
 
-    /** Cuanto se vigila la quietud despues del golpe. */
-    private val msVigilandoQuietud = 4500L
+    /**
+     * Cuanto se vigila la quietud despues del golpe.
+     *
+     * Eran 4,5 segundos y se hacia larguisimo: desde el golpe hasta que
+     * sonaba la alarma pasaba una eternidad, justo cuando la persona esta
+     * en el suelo esperando. Se bajan a 2,5.
+     *
+     * Es un equilibrio, no un numero magico. Cuanto mas corto, antes
+     * avisa pero mas facil es confundir un golpe cualquiera con una
+     * caida. 2,5 segundos siguen bastando para distinguir lo importante:
+     * quien se cae y esta bien se remueve enseguida -se queja, se apoya,
+     * se incorpora-, y ese movimiento aparece en el primer segundo o dos.
+     * Y si aun asi nos equivocamos, para eso esta el minuto de
+     * confirmacion, que no cuesta nada.
+     */
+    private val msVigilandoQuietud = 2500L
 
     /** Cuanto se puede mover y seguir considerandose "quieto". */
     private val umbralQuieto = 2.2f
