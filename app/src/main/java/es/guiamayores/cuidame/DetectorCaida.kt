@@ -72,6 +72,44 @@ class DetectorCaida {
     /** Cuanto se puede mover y seguir considerandose "quieto". */
     private val umbralQuieto = 2.2f
 
+    /**
+     * EL MINIMO DE MOVIMIENTO QUE DEMUESTRA QUE HAY UNA PERSONA DEBAJO
+     * ================================================================
+     *
+     * Este es el arreglo del fallo mas gordo que ha tenido el detector:
+     * dejar el movil en la mesa o soltarlo en el sofa disparaba el aviso.
+     *
+     * Y visto el codigo, tenia que pasar. Yo solo comprobaba que despues
+     * del golpe el movil NO se moviera mucho. Un movil soltado en una mesa
+     * cumple eso mejor que nadie: da su golpecito y se queda absolutamente
+     * inmovil. Para el detector era la caida perfecta.
+     *
+     * Lo que faltaba es la otra mitad de la comprobacion. Un movil encima
+     * de un mueble esta MUERTO: lo unico que mide es el ruido electrico de
+     * su propio sensor, del orden de 0,01-0,03. Un movil encima de una
+     * persona, aunque este tirada en el suelo sin poder levantarse, NUNCA
+     * esta muerto: la respiracion mueve el pecho, el pulso se transmite, la
+     * mano tiembla. Eso deja una señal pequeña pero clarisima, de 0,05 para
+     * arriba, varias veces por encima del ruido.
+     *
+     * Asi que ahora la quietud tiene suelo ademas de techo: para que cuente
+     * como caida, el movil tiene que estar quieto PERO VIVO. Y si esta
+     * demasiado quieto -mas quieto de lo que puede estar algo apoyado en un
+     * cuerpo humano-, se descarta: es un mueble, no una persona.
+     */
+    var umbralVida = 0.05f
+
+    /**
+     * Lo que se deja pasar despues del golpe antes de empezar a medir.
+     *
+     * El golpe en si y el rebote que viene detras son movimiento brusco. Si
+     * entraran en la cuenta, un movil soltado en la mesa parecería lleno de
+     * vida durante ese instante y colaria por el suelo nuevo. Se descartan
+     * los primeros 300 ms y se mide solo lo que viene despues, que es donde
+     * de verdad se distingue un cuerpo de un mueble.
+     */
+    private val msAsentamiento = 300L
+
     /** Ventana hacia atras donde buscamos la caida libre previa al golpe. */
     private val msVentanaCaidaLibre = 1200L
 
@@ -82,8 +120,16 @@ class DetectorCaida {
 
     private var vigilandoDesde = 0L
     private var huboCaidaLibre = false
-    private var movimientoAcumulado = 0f
+    private var suma = 0.0
+    private var sumaCuadrados = 0.0
     private var muestrasQuietud = 0
+
+    // Ventana corta de las ultimas lecturas, para poder enseñar en la
+    // pantalla de sensores cuanta "vida" hay AHORA MISMO. Sin esto, ajustar
+    // el umbral de vida seria adivinar: con esto se deja el movil en la
+    // mesa, se mira el numero, se mete en el bolsillo y se vuelve a mirar.
+    private val ultimas = ArrayDeque<Float>()
+    private val maxUltimas = 60
 
     /** Ultimo instante en que la persona se movio de verdad. */
     var ultimoMovimiento = System.currentTimeMillis()
@@ -100,6 +146,26 @@ class DetectorCaida {
     var quietudUltimoIntento = -1f; private set
     var caidasDetectadas = 0; private set
     var intentosDescartados = 0; private set
+    var descartadosPorMueble = 0; private set
+
+    /**
+     * Cuanta vida hay ahora mismo, medida sobre el ultimo segundo.
+     *
+     * Se calcula como la variacion de la fuerza respecto a SU PROPIA media,
+     * no respecto a 9,81. La diferencia importa: casi ningun acelerometro
+     * marca exactamente 9,81 en reposo -suelen tener una desviacion fija de
+     * fabrica-, asi que medir contra 9,81 confundiria un sensor mal
+     * calibrado con un movil que se mueve. Contra su propia media, esa
+     * desviacion se cancela sola y solo queda el movimiento de verdad.
+     */
+    fun vidaAhora(): Float {
+        if (ultimas.size < 10) return 0f
+        var s = 0.0; var s2 = 0.0
+        for (v in ultimas) { s += v; s2 += v.toDouble() * v }
+        val n = ultimas.size
+        val varianza = s2 / n - (s / n) * (s / n)
+        return if (varianza <= 0.0) 0f else kotlin.math.sqrt(varianza).toFloat()
+    }
 
     /** "esperando", "comprobando quietud", "caida" o "descartado". */
     var estado = "esperando"; private set
@@ -110,6 +176,7 @@ class DetectorCaida {
         quietudUltimoIntento = -1f
         caidasDetectadas = 0
         intentosDescartados = 0
+        descartadosPorMueble = 0
         estado = "esperando"
     }
 
@@ -131,30 +198,57 @@ class DetectorCaida {
             recientes.removeFirst()
         }
 
+        ultimas.addLast(fuerza)
+        while (ultimas.size > maxUltimas) ultimas.removeFirst()
+
         // ---- Fase 2: ya hubo golpe, ahora miramos si se queda quieta ----
         if (vigilandoDesde > 0L) {
-            movimientoAcumulado += desviacion
-            muestrasQuietud++
+            // El golpe y su rebote no cuentan: se empieza a medir cuando
+            // todo se ha asentado.
+            if (ahora - vigilandoDesde >= msAsentamiento) {
+                suma += fuerza
+                sumaCuadrados += fuerza.toDouble() * fuerza
+                muestrasQuietud++
+            }
 
             if (ahora - vigilandoDesde >= msVigilandoQuietud) {
-                val movimientoMedio =
-                    if (muestrasQuietud > 0) movimientoAcumulado / muestrasQuietud else 99f
-                quietudUltimoIntento = movimientoMedio
+                val movimiento = if (muestrasQuietud >= 10) {
+                    val n = muestrasQuietud
+                    val varianza = sumaCuadrados / n - (suma / n) * (suma / n)
+                    if (varianza <= 0.0) 0f else kotlin.math.sqrt(varianza).toFloat()
+                } else 99f
+                quietudUltimoIntento = movimiento
 
                 // Si hubo caida libre antes del golpe la sospecha es mayor,
                 // asi que se admite algo mas de movimiento posterior.
                 val limite = if (huboCaidaLibre) umbralQuieto * 1.4f else umbralQuieto
-                val sospecha = movimientoMedio < limite
+
+                // DOS CONDICIONES, NO UNA.
+                //   quieto  -> nadie se ha levantado ni se esta moviendo
+                //   con vida -> pero hay ALGO debajo: un cuerpo que respira
+                // Falta cualquiera de las dos y no se avisa.
+                val quieto = movimiento < limite
+                val conVida = movimiento > umbralVida
 
                 reiniciar()
-                if (sospecha) {
-                    caidasDetectadas++
-                    estado = "caida"
-                } else {
-                    intentosDescartados++
-                    estado = "descartado: se siguio moviendo"
+                when {
+                    quieto && conVida -> {
+                        caidasDetectadas++
+                        estado = "caida"
+                        return true
+                    }
+                    quieto && !conVida -> {
+                        // Demasiado quieto para ser una persona. Es el movil
+                        // solo, encima de un mueble.
+                        descartadosPorMueble++
+                        estado = "descartado: el movil esta solo, no encima de una persona"
+                    }
+                    else -> {
+                        intentosDescartados++
+                        estado = "descartado: se siguio moviendo"
+                    }
                 }
-                return sospecha
+                return false
             }
             return false
         }
@@ -164,7 +258,8 @@ class DetectorCaida {
             huboCaidaLibre = recientes.any { it.fuerza < umbralCaidaLibre }
             picoUltimoGolpe = fuerza
             vigilandoDesde = ahora
-            movimientoAcumulado = 0f
+            suma = 0.0
+            sumaCuadrados = 0.0
             muestrasQuietud = 0
             estado = if (huboCaidaLibre) "golpe con caida libre: comprobando"
                      else "golpe: comprobando si se mueve"
@@ -200,7 +295,8 @@ class DetectorCaida {
     fun reiniciar() {
         vigilandoDesde = 0L
         huboCaidaLibre = false
-        movimientoAcumulado = 0f
+        suma = 0.0
+        sumaCuadrados = 0.0
         muestrasQuietud = 0
     }
 

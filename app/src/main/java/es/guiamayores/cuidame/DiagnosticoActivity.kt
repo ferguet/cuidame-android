@@ -46,6 +46,8 @@ class DiagnosticoActivity : AppCompatActivity(), SensorEventListener {
     private lateinit var detalle: TextView
     private lateinit var resultado: TextView
     private lateinit var umbral: TextView
+    private lateinit var vida: TextView
+    private lateinit var vidaPista: TextView
 
     private var ultimoRefresco = 0L
 
@@ -64,7 +66,10 @@ class DiagnosticoActivity : AppCompatActivity(), SensorEventListener {
 
         col.addView(t("Sensores en vivo", 30f, Color.WHITE, true))
         col.addView(t(
-            "Deje el móvil quieto: debería marcar unos 9,8. Tírelo o cáigase y mire el pico.",
+            "Deje el móvil quieto: debería marcar unos 9,8. Tírelo o cáigase y mire el pico.\n\n" +
+            "PARA COMPROBAR LOS AVISOS FALSOS: deje el móvil en la mesa y mire la SEÑAL DE VIDA " +
+            "(debe salir en rojo). Métaselo en el bolsillo y quédese quieto: debe ponerse verde. " +
+            "Si en la mesa sale verde, dígamelo y subo el listón.",
             15f, Color.parseColor("#9AA4B2")
         ))
 
@@ -75,6 +80,21 @@ class DiagnosticoActivity : AppCompatActivity(), SensorEventListener {
         col.addView(t("PICO MÁXIMO MEDIDO", 13f, Color.parseColor("#9AA4B2")))
         pico = t("—", 46f, Color.parseColor("#FBBF24"), true)
         col.addView(pico)
+
+        // ESTE NUMERO ES EL QUE ARREGLA LOS AVISOS FALSOS.
+        //
+        // Es lo unico que distingue un movil encima de un mueble de un
+        // movil encima de una persona quieta. Se enseña en vivo para poder
+        // comprobarlo de verdad en cada movil en vez de fiarse del numero
+        // que yo he puesto: se deja el movil en la mesa y se mira, y luego
+        // se mete en el bolsillo y se mira otra vez. Tienen que salir
+        // numeros claramente distintos; si no, el umbral esta mal puesto.
+        col.addView(hueco(16))
+        col.addView(t("SEÑAL DE VIDA (último segundo)", 13f, Color.parseColor("#9AA4B2")))
+        vida = t("—", 40f, Color.parseColor("#4ADE80"), true)
+        col.addView(vida)
+        vidaPista = t("", 14f, Color.parseColor("#6C7689"))
+        col.addView(vidaPista)
 
         // El umbral se calcula contra lo que ESTE movil puede medir, no
         // contra un numero fijo. Ver DetectorCaida.ajustarAlSensor.
@@ -204,6 +224,18 @@ class DiagnosticoActivity : AppCompatActivity(), SensorEventListener {
         pico.text = String.format("%.1f", detector.pico)
         estado.text = detector.estado
 
+        val v = detector.vidaAhora()
+        vida.text = String.format("%.3f", v)
+        if (v > detector.umbralVida) {
+            vida.setTextColor(Color.parseColor("#4ADE80"))
+            vidaPista.text = "Hay algo vivo debajo (respiración, pulso, temblor). " +
+                             "Un golpe aquí SÍ se tomaría en serio."
+        } else {
+            vida.setTextColor(Color.parseColor("#F87171"))
+            vidaPista.text = "Demasiado quieto para ser una persona: esto es un mueble. " +
+                             "Un golpe aquí se descarta y NO avisa."
+        }
+
         val q = detector.quietudUltimoIntento
         detalle.text = buildString {
             if (detector.picoUltimoGolpe > 0f) {
@@ -213,15 +245,20 @@ class DiagnosticoActivity : AppCompatActivity(), SensorEventListener {
             }
             if (q >= 0f) {
                 append("Movimiento tras el golpe: ")
-                append(String.format("%.2f", q))
-                append("  (por debajo de 2,2 cuenta como quieto)")
+                append(String.format("%.3f", q))
+                append("\nTiene que quedar entre ")
+                append(String.format("%.2f", detector.umbralVida))
+                append(" y 2,20: ni muerto ni moviéndose.")
             }
         }
 
-        resultado.text = "Caídas detectadas: ${detector.caidasDetectadas}" +
+        resultado.text = buildString {
+            append("Caídas detectadas: ${detector.caidasDetectadas}")
             if (detector.intentosDescartados > 0)
-                "\nGolpes descartados por movimiento: ${detector.intentosDescartados}"
-            else ""
+                append("\nDescartados porque se siguió moviendo: ${detector.intentosDescartados}")
+            if (detector.descartadosPorMueble > 0)
+                append("\nDescartados por ser un mueble: ${detector.descartadosPorMueble}")
+        }
     }
 
     /**

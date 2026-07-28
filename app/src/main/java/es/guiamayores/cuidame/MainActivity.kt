@@ -119,6 +119,9 @@ class MainActivity : AppCompatActivity() {
         col.addView(botonIcono("✋", "El temblor", "De las manos, en dos posturas",
             "#5B21B6") { startActivity(Intent(this, TemblorActivity::class.java)) })
 
+        col.addView(botonIcono("⚖️", "El equilibrio", "Aguantar de pie, con algo donde agarrarse",
+            "#B45309") { startActivity(Intent(this, EquilibrioActivity::class.java)) })
+
         col.addView(botonIcono("📋", "Mis mediciones", "Lo medido otros días, para el médico",
             "#0F766E") { startActivity(Intent(this, HistorialActivity::class.java)) })
 
