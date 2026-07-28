@@ -427,6 +427,13 @@ class PulsoActivity : AppCompatActivity() {
             else -> "Lectura poco fiable: repítala sin mover el dedo"
         }
 
+        // Cuantas de las ultimas seis mediciones guardadas salieron
+        // desiguales. Es lo que decide si esto es un aviso o solo una nota.
+        val vecesDesigual = Historial.leer(this)
+            .filter { it.tipo == "Pulso" }
+            .take(6)
+            .count { it.resumen.contains("IRREGULAR") || it.resumen.contains("desigual") }
+
         // El ritmo es lo mas importante de toda esta pantalla, asi que va
         // primero y con las palabras mas claras que se me ocurren. Nunca
         // se afirma que la persona tenga nada: se le manda al medico.
@@ -438,12 +445,35 @@ class PulsoActivity : AppCompatActivity() {
                 "Puede no ser nada —basta con moverse un poco o respirar hondo—, " +
                 "pero repita la medición un par de veces sentado y quieto. " +
                 "Si sigue saliendo así, coménteselo a su médico."
-            AnalizadorPulso.Ritmo.IRREGULAR ->
-                "🔴 Su corazón está latiendo a destiempo.\n\n" +
-                "Esto NO es un diagnóstico y esta app no puede dárselo. " +
-                "Pero es motivo suficiente para pedir cita y decirle a su médico: " +
-                "\"quiero que me hagan un electrocardiograma, me sale el pulso irregular\". " +
-                "No es una urgencia si se encuentra bien, pero no lo deje pasar."
+            AnalizadorPulso.Ritmo.IRREGULAR -> {
+                // UNA SOLA MEDICION NO PUEDE MANDAR A NADIE AL MEDICO.
+                //
+                // Esto lo escribi yo mismo en el Historial -"lo que importa
+                // no es el numero de hoy, es si se repite"- y luego lo
+                // incumpli aqui: con una sola lectura la app soltaba "su
+                // corazon late a destiempo, pida cita". A una persona
+                // joven y sana eso le da un susto de los que quitan el
+                // sueño una semana, y encima por nada.
+                //
+                // Ahora la primera vez solo se apunta y se pide repetir. Y
+                // esto no es ser blando: una arritmia que importa no
+                // aparece una tarde y desaparece, sale una y otra vez. Con
+                // exigir que se repita no se pierde practicamente nada de
+                // lo que hay que detectar, y se quita casi todo el ruido.
+                if (vecesDesigual >= 2)
+                    "🔴 Van varias veces que el pulso sale desigual.\n\n" +
+                    "Esto NO es un diagnóstico y esta app no puede dárselo. " +
+                    "Pero repetirse sí es motivo para pedir cita y decirle a su médico: " +
+                    "\"me sale el pulso irregular, ¿me pueden hacer un electrocardiograma?\". " +
+                    "No es una urgencia si se encuentra bien, pero no lo deje pasar."
+                else
+                    "🟡 Hoy el pulso ha salido desigual.\n\n" +
+                    "Con una sola medición esto no quiere decir nada: en gente joven " +
+                    "el pulso cambia mucho al respirar, y en cualquiera lo cambia el " +
+                    "café, el móvil mal apoyado o haber subido escaleras.\n\n" +
+                    "Repítalo otro día, sentado y tranquilo. Queda apuntado, y si se " +
+                    "repite varias veces ya se lo diré claramente."
+            }
             AnalizadorPulso.Ritmo.POCOS_DATOS ->
                 if (r.latidosPerdidos > 0.10)
                     "⚪ Se me han escapado latidos, así que del compás no opino.\n\n" +
@@ -485,7 +515,10 @@ class PulsoActivity : AppCompatActivity() {
                 else -> Color.parseColor("#3A2A10")
             }
         )
-        if (r.ritmo == AnalizadorPulso.Ritmo.IRREGULAR) hablarFuerte()
+        // La voz de aviso, solo cuando ya se ha repetido. Soltarle a
+        // alguien "su corazón late a destiempo" en alto, la primera vez y
+        // por una lectura suelta, es dar un susto sin ninguna base.
+        if (r.ritmo == AnalizadorPulso.Ritmo.IRREGULAR && vecesDesigual >= 2) hablarFuerte()
 
         // AL HISTORIAL, SOLO SI LA MEDICION ES DE FIAR.
         //

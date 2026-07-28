@@ -368,8 +368,47 @@ class AnalizadorPulso {
         val sospechosos = intervalos.count { it > mediana * 1.7 && it < mediana * 2.4 }
         val propPerdidos = sospechosos.toDouble() / intervalos.size
 
+        // 8. ¿LA VARIACION ES ORDENADA O ES UN CAOS?
+        //
+        // ESTE TROZO FALTABA Y ES EL QUE HA DADO UN SUSTO A UNA PERSONA
+        // JOVEN Y SANA.
+        //
+        // Arriba, en el comentario de analizarRitmo, yo mismo escribi que
+        // "un corazon sano tambien varia, pero varia con suavidad y
+        // siguiendo la respiracion". Lo escribi y no lo programe. El
+        // analisis solo miraba CUANTO varia, no COMO varia. Y resulta que
+        // eso es justo lo que separa las dos cosas:
+        //
+        //   - Arritmia por fibrilacion: cada latido cae donde le da la
+        //     gana. Los intervalos suben y bajan sin orden ninguno.
+        //   - Corazon joven y sano: los intervalos se acortan al coger
+        //     aire y se alargan al soltarlo. Sube, sube, sube, baja, baja,
+        //     baja. Es una ONDA, no un desorden.
+        //
+        // Y aqui esta lo grave: esa onda es MAS marcada cuanto mas joven y
+        // mejor de salud se esta. Se llama arritmia sinusal respiratoria y
+        // es signo de un corazon en forma. O sea que mi codigo cogia la
+        // señal de estar sano y la contaba como señal de estar enfermo.
+        // Cuanto mas sano, mas alto el numero, mas probable el susto.
+        //
+        // Contando cuantas veces cambia de sentido la variacion se separan
+        // las dos: en una onda de respiracion los cambios de sentido son
+        // pocos (dos por respiracion); en el caos, casi en cada latido.
+        var cambiosDeSentido = 0
+        var comparaciones = 0
+        for (i in 2 until intervalos.size) {
+            val d1 = intervalos[i - 1] - intervalos[i - 2]
+            val d2 = intervalos[i] - intervalos[i - 1]
+            if (d1 != 0.0 && d2 != 0.0) {
+                comparaciones++
+                if ((d1 > 0) != (d2 > 0)) cambiosDeSentido++
+            }
+        }
+        val desorden = if (comparaciones >= 10)
+            cambiosDeSentido.toDouble() / comparaciones else -1.0
+
         val ritmo = analizarRitmo(
-            irregularidad, propSaltos, intervalos.size, calidad, propPerdidos
+            irregularidad, propSaltos, intervalos.size, calidad, propPerdidos, desorden
         )
 
         return Resultado(
@@ -432,7 +471,8 @@ class AnalizadorPulso {
         saltos: Double,
         nIntervalos: Int,
         calidad: Double,
-        latidosPerdidos: Double
+        latidosPerdidos: Double,
+        desorden: Double
     ): Ritmo {
         // Con pocos latidos o con una lectura sucia no se opina: seria
         // irresponsable dar un susto por un dedo mal apoyado.
@@ -446,7 +486,21 @@ class AnalizadorPulso {
         val muyVariable = irregularidad > 0.12
         val muchosSaltos = saltos > 0.40
 
+        // SI LA VARIACION SIGUE UNA ONDA, NO ES UNA ARRITMIA.
+        //
+        // Con la respiracion los intervalos suben varios latidos seguidos
+        // y luego bajan varios seguidos: cambia de sentido dos veces por
+        // respiracion, o sea en torno a un tercio de los latidos. En una
+        // fibrilacion no hay onda ninguna y el sentido cambia casi cada
+        // latido, por encima de la mitad.
+        //
+        // Por debajo de ese medio se considera respiracion y no se avisa
+        // de nada, por muy grande que sea la variacion. Es la unica forma
+        // de no confundir un corazon joven y sano con uno enfermo.
+        val esRespiracion = desorden in 0.0..0.50
+
         return when {
+            esRespiracion -> Ritmo.REGULAR
             muyVariable && muchosSaltos -> Ritmo.IRREGULAR
             muyVariable || muchosSaltos -> Ritmo.DUDOSO
             else -> Ritmo.REGULAR
