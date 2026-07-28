@@ -336,6 +336,27 @@ class FotoOjoActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             append("Foto guardada para enseñarla al médico.")
         }
         hablar("Ya está. Puede enseñarle esta foto a su médico.")
+
+        // Al historial solo si se ha reconocido el ojo de verdad. Una foto
+        // en la que no se distingue nada no es un dato, es un borrón.
+        if (r.hayBlanco || r.hayRojo) {
+            val blanco = when {
+                !r.hayBlanco -> "no visible"
+                r.amarilleo < 0.10 -> "blanca"
+                r.amarilleo < 0.18 -> "algo amarillenta"
+                else -> "AMARILLENTA"
+            }
+            val parpado = when {
+                !r.hayRojo -> "no visible"
+                r.rojez > 1.45 -> "bien coloreado"
+                r.rojez > 1.25 -> "intermedio"
+                else -> "PÁLIDO"
+            }
+            Historial.añadir(
+                this, "Ojo", "parte blanca $blanco, párpado $parpado",
+                "foto guardada en el móvil"
+            )
+        }
     }
 
     private fun guardar(foto: Bitmap) {

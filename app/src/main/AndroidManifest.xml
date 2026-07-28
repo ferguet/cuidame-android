@@ -100,6 +100,16 @@
             android:exported="false"
             android:screenOrientation="portrait" />
 
+        <activity
+            android:name=".TemblorActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
+
+        <activity
+            android:name=".HistorialActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
+
         <service
             android:name=".ServicioVigilancia"
             android:exported="false"

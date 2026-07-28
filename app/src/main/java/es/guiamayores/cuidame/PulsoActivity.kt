@@ -486,6 +486,27 @@ class PulsoActivity : AppCompatActivity() {
             }
         )
         if (r.ritmo == AnalizadorPulso.Ritmo.IRREGULAR) hablarFuerte()
+
+        // AL HISTORIAL, SOLO SI LA MEDICION ES DE FIAR.
+        //
+        // Se exige lectura limpia y suficientes latidos. Guardar lecturas
+        // dudosas seria peor que no guardar nada: alguien podria contar
+        // cuantas salieron irregulares y sacar una conclusion falsa a
+        // partir de dedos mal apoyados.
+        if (r.calidad > 0.5 && r.latidos >= 20 &&
+            r.ritmo != AnalizadorPulso.Ritmo.POCOS_DATOS) {
+            val ritmoCorto = when (r.ritmo) {
+                AnalizadorPulso.Ritmo.REGULAR -> "ritmo regular"
+                AnalizadorPulso.Ritmo.DUDOSO -> "ritmo algo desigual"
+                AnalizadorPulso.Ritmo.IRREGULAR -> "RITMO IRREGULAR"
+                else -> ""
+            }
+            val detalle = buildString {
+                append("variabilidad ${r.rmssd.toInt()} ms")
+                if (resp != null) append(", respiración $resp/min")
+            }
+            Historial.añadir(this, "Pulso", "${r.pulsaciones} ppm, $ritmoCorto", detalle)
+        }
         instruccion.setTextColor(Color.parseColor("#9AA4B2"))
         instruccion.text = "Para comparar de verdad, mídase siempre en las mismas " +
                            "condiciones: sentado, tranquilo y a la misma hora."

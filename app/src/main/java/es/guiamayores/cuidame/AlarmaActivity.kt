@@ -204,6 +204,13 @@ class AlarmaActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         if (yaResuelto) return
         yaResuelto = true
         parar()
+        // Se anota igualmente, aunque diga que esta bien: una caida de la
+        // que uno se levanta sigue siendo una caida, y si se repiten es
+        // justo lo que hay que contarle al medico. Las caidas repetidas
+        // son la señal de alarma, no la primera.
+        if (!esPrueba) {
+            Historial.añadir(this, "Caída", "detectada, dijo que estaba bien", motivo)
+        }
         hablar("De acuerdo. No aviso a nadie. Me quedo vigilando.")
         titulo.text = "Muy bien"
         explicacion.text = "No he avisado a nadie.\nSigo aquí."
@@ -227,6 +234,11 @@ class AlarmaActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
         val texto = Avisador.mensajeEmergencia(this, motivo)
         val fallo = Avisador.enviar(this, texto)
+        Historial.añadir(
+            this, "Caída",
+            if (fallo == null) "AVISO ENVIADO — no respondió" else "no respondió (no se pudo avisar)",
+            motivo
+        )
 
         if (fallo == null) {
             val a = Ajustes(this)

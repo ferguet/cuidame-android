@@ -110,6 +110,15 @@ class MainActivity : AppCompatActivity() {
             startActivity(Intent(this, FotoOjoActivity::class.java))
         })
 
+        col.addView(boton("Medir el temblor de las manos", Color.parseColor("#5B21B6")) {
+            startActivity(Intent(this, TemblorActivity::class.java))
+        })
+
+        col.addView(hueco(30))
+        col.addView(boton("📋  MIS MEDICIONES", Color.parseColor("#0F766E")) {
+            startActivity(Intent(this, HistorialActivity::class.java))
+        })
+
         col.addView(hueco(40))
         col.addView(texto("PERMISOS", 14f, Color.parseColor("#9AA4B2")))
         permisos = texto("", 16f, Color.parseColor("#9AA4B2"))
