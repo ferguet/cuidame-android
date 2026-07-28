@@ -296,12 +296,40 @@ class ServicioVigilancia : Service(), SensorEventListener {
 
     }
 
+    /**
+     * EL RELOJ EMPIEZA A CONTAR CUANDO EMPIEZA EL DIA, NO ANTES.
+     *
+     * Aqui habia un fallo de bulto que la ventana de noche no arreglaba,
+     * solo escondia. El contador seguia corriendo mientras la persona
+     * dormia: alguien que se acuesta a las once y duerme diez horas
+     * acumula diez horas de quietud. A las nueve de la mañana, en cuanto
+     * se abre la ventana de vigilancia, ese contador ya pasaba de sobra
+     * cualquier limite y la alarma sonaba encima de una persona dormida.
+     *
+     * O sea que no vigilar de noche no servia de nada: la falsa alarma no
+     * se evitaba, se aplazaba a primera hora. Y a primera hora es
+     * exactamente cuando mas gente sigue durmiendo.
+     *
+     * Ahora el contador arranca en el momento en que se abre la ventana.
+     * Con cinco horas y la ventana a las nueve, lo antes que puede saltar
+     * son las dos de la tarde, y para entonces "no se ha movido en toda la
+     * mañana" ya es una frase que quiere decir algo.
+     */
     private fun comprobarInmovilidad(ahora: Long) {
         val hora = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
         if (hora < ajustes.horaInicioDia || hora >= ajustes.horaFinDia) return
 
+        val aperturaDeHoy = Calendar.getInstance().apply {
+            set(Calendar.HOUR_OF_DAY, ajustes.horaInicioDia)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
+
+        val desde = maxOf(detector.ultimoMovimiento, aperturaDeHoy)
+
         val limite = ajustes.horasSinMoverse * 60L * 60L * 1000L
-        if (ahora - detector.ultimoMovimiento > limite) {
+        if (ahora - desde > limite) {
             dispararAlarma(
                 "lleva ${ajustes.horasSinMoverse} horas sin moverse",
                 AlarmaActivity.TIPO_INMOVILIDAD

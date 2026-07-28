@@ -30,23 +30,30 @@ class Ajustes(contexto: Context) {
     /**
      * Horas sin moverse que hacen saltar el aviso.
      *
-     * Cuatro horas es un punto intermedio pensado a proposito: una siesta
-     * larga no lo dispara, pero un desmayo por la mañana no espera hasta
-     * la noche. Es lo que mas gente salva y lo que menos falsos avisos da.
+     * Empezo en cuatro y se ha subido a cinco, pero el numero importa
+     * menos de lo que parece: lo que fallaba de verdad era que el reloj
+     * seguia contando mientras la persona dormia (ver
+     * ServicioVigilancia.comprobarInmovilidad). Arreglado eso, cinco horas
+     * contadas desde que empieza el dia significan "no se ha movido en
+     * toda la mañana", que ya es una frase con contenido.
+     *
+     * Se puede cambiar desde la pantalla de casa, porque no hay un numero
+     * bueno para todo el mundo: quien vive solo y sale poco necesita mas
+     * margen que quien tiene a alguien entrando y saliendo.
      */
     var horasSinMoverse: Int
-        get() = p.getInt("horasQuieto", 4)
-        set(v) = p.edit().putInt("horasQuieto", v).apply()
+        get() = p.getInt("horasQuieto", 5)
+        set(v) = p.edit().putInt("horasQuieto", v.coerceIn(2, 12)).apply()
 
     /** Fuera de este horario no se vigila la inmovilidad: es de noche y
      *  lo normal es justamente no moverse. */
     var horaInicioDia: Int
         get() = p.getInt("horaInicio", 9)
-        set(v) = p.edit().putInt("horaInicio", v).apply()
+        set(v) = p.edit().putInt("horaInicio", v.coerceIn(5, 14)).apply()
 
     var horaFinDia: Int
         get() = p.getInt("horaFin", 22)
-        set(v) = p.edit().putInt("horaFin", v).apply()
+        set(v) = p.edit().putInt("horaFin", v.coerceIn(16, 23)).apply()
 
     /**
      * DONDE ESTA LA CASA, APRENDIDO SOLO.

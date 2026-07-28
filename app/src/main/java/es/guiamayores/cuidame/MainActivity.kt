@@ -198,6 +198,26 @@ class MainActivity : AppCompatActivity() {
             }
         })
 
+        // ---- CUANDO AVISAR POR FALTA DE MOVIMIENTO ----
+        //
+        // Esto no puede ser un numero fijo escrito por mi. Quien vive solo
+        // y sale poco de casa necesita mucho mas margen que quien tiene a
+        // alguien entrando y saliendo, y quien se levanta a las once no
+        // puede tener la misma hora de arranque que quien madruga.
+        col.addView(hueco(30))
+        col.addView(texto("AVISAR SI NO SE MUEVE", 13f, Color.parseColor("#7E8AA0")))
+        col.addView(texto(
+            "El reloj empieza a contar cuando empieza el día, no mientras duerme.",
+            14f, Color.parseColor("#6C7689")
+        ))
+
+        col.addView(selector("Horas seguidas sin moverse", 2, 12,
+            { ajustes.horasSinMoverse }, { ajustes.horasSinMoverse = it }, "h"))
+        col.addView(selector("No mirar antes de las", 5, 14,
+            { ajustes.horaInicioDia }, { ajustes.horaInicioDia = it }, ":00"))
+        col.addView(selector("No mirar después de las", 16, 23,
+            { ajustes.horaFinDia }, { ajustes.horaFinDia = it }, ":00"))
+
         // ---- PREGUNTAR DONDE ESTA ----
         //
         // Va aqui, en la zona de quien cuida, y explicado sin rodeos. Es
@@ -502,6 +522,65 @@ class MainActivity : AppCompatActivity() {
             if (negrita) setTypeface(typeface, Typeface.BOLD)
             setPadding(0, 10, 0, 10)
         }
+
+    /**
+     * Un número que se cambia con dos botones grandes, sin teclado.
+     *
+     * Escribir un numero en un movil es de las cosas que peor se le dan a
+     * quien no tiene costumbre: sale el teclado, tapa media pantalla, se
+     * cuela una letra, no se sabe como cerrarlo. Con un mas y un menos
+     * gordos no hay forma de equivocarse ni de escribir algo imposible.
+     */
+    private fun selector(
+        titulo: String,
+        minimo: Int,
+        maximo: Int,
+        leer: () -> Int,
+        guardar: (Int) -> Unit,
+        sufijo: String
+    ): LinearLayout {
+        val valor = TextView(this).apply {
+            text = leer().toString() + sufijo
+            textSize = 26f
+            setTextColor(Color.WHITE)
+            setTypeface(typeface, Typeface.BOLD)
+            gravity = Gravity.CENTER
+            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f)
+        }
+        fun mover(cuanto: Int) {
+            val nuevo = (leer() + cuanto).coerceIn(minimo, maximo)
+            guardar(nuevo)
+            valor.text = leer().toString() + sufijo
+            refrescar()
+        }
+        val tecla = { t: String, cuanto: Int ->
+            Button(this).apply {
+                text = t
+                textSize = 26f
+                setTextColor(Color.WHITE)
+                setTypeface(typeface, Typeface.BOLD)
+                background = fondo(Color.parseColor("#334155"), 18f)
+                layoutParams = LinearLayout.LayoutParams(150, ViewGroup.LayoutParams.MATCH_PARENT)
+                setOnClickListener { mover(cuanto) }
+            }
+        }
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = 16 }
+            addView(texto(titulo, 15f, Color.parseColor("#9AA4B2")))
+            addView(LinearLayout(this@MainActivity).apply {
+                orientation = LinearLayout.HORIZONTAL
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, 130
+                )
+                addView(tecla("−", -1))
+                addView(valor)
+                addView(tecla("+", +1))
+            })
+        }
+    }
 
     /** Rotulillo de seccion, en gris y pequeño: separa sin gritar. */
     private fun rotulo(t: String) = TextView(this).apply {
