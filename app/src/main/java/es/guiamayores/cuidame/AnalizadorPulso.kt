@@ -192,12 +192,28 @@ class AnalizadorPulso {
         val segunda = ultimos.takeLast(mitad).average()
         val deriva = abs(segunda - primera)
 
+        // SUAVIZADO, PARA QUE EL COLOR NO PARPADEE.
+        //
+        // Mirando solo los ultimos dos segundos, la deriva salta mucho de
+        // una lectura a la siguiente y el semaforo cambiaba de color
+        // varias veces por segundo. Eso no informa: marea, y encima hace
+        // dudar de todo lo demas que dice la app.
+        //
+        // Se arrastra el valor anterior con peso: cada lectura nueva solo
+        // mueve el resultado un 15%. El color sigue reaccionando a un
+        // movimiento de verdad en menos de un segundo, pero deja de
+        // temblar con el ruido normal.
+        derivaSuave = if (derivaSuave <= 0.0) deriva
+                      else derivaSuave * 0.85 + deriva * 0.15
+
         return when {
-            deriva > 3.0 -> Firmeza.MAL
-            deriva > 1.0 -> Firmeza.REGULAR
+            derivaSuave > 3.0 -> Firmeza.MAL
+            derivaSuave > 1.0 -> Firmeza.REGULAR
             else -> Firmeza.BIEN
         }
     }
+
+    private var derivaSuave = 0.0
 
     /**
      * Devuelve el ultimo trozo de onda, ya sin deriva, con los latidos

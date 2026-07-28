@@ -66,6 +66,8 @@ class PulsoActivity : AppCompatActivity() {
 
     private var midiendo = false
     private var arrancado = 0L
+    private var ultimoDibujo = 0L
+    private var ultimoTexto = 0L
     private var exposicionBloqueada = false
     private var peticion: CaptureRequest.Builder? = null
 
@@ -328,14 +330,28 @@ class PulsoActivity : AppCompatActivity() {
         analizador.añadir(brillo, ahora)
         val seg = analizador.segundosGrabados()
 
-        // La onda y el color, en directo. Asi la persona corrige el dedo
-        // mientras mide, en vez de enterarse al final de que no valia.
-        val firmeza = analizador.firmezaActual()
-        grafica.actualizar(analizador.ondaReciente(), firmeza)
-        pintarAviso(firmeza)
+        // LA ONDA SE REDIBUJA 8 VECES POR SEGUNDO, NO 30.
+        //
+        // Al principio se redibujaba con cada imagen de la camara. Limpiar
+        // la onda y buscarle los picos no es gratis, y hacerlo treinta
+        // veces por segundo en el mismo hilo que atiende a la camara
+        // acababa robandole tiempo: se perdian imagenes y el pulso salia
+        // peor justo por culpa del dibujo que servia para vigilarlo.
+        //
+        // A ocho veces por segundo el movimiento se ve igual de fluido
+        // para un ojo humano y la medicion recupera su precision.
+        if (ahora - ultimoDibujo > 120) {
+            ultimoDibujo = ahora
+            val firmeza = analizador.firmezaActual()
+            grafica.actualizar(analizador.ondaReciente(), firmeza)
+            pintarAviso(firmeza)
+        }
 
         if (seg < analizador.segundosNecesarios) {
-            progreso.text = "Midiendo…  $seg de ${analizador.segundosNecesarios} segundos"
+            if (ahora - ultimoTexto > 400) {
+                ultimoTexto = ahora
+                progreso.text = "Midiendo…  $seg de ${analizador.segundosNecesarios} segundos"
+            }
             return
         }
 

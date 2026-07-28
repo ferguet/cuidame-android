@@ -124,6 +124,17 @@ class RespiracionActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         }
         col.addView(boton)
 
+        col.addView(Button(this).apply {
+            text = "Probar la vibración"
+            textSize = 18f
+            setTextColor(Color.WHITE)
+            setBackgroundColor(Color.parseColor("#334155"))
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, 150
+            ).apply { topMargin = 18 }
+            setOnClickListener { probarVibracion() }
+        })
+
         col.addView(t(
             "Si en algún momento se marea o se agobia, pare y respire normal. " +
             "Esto es un ejercicio de calma, no una prueba: no hay que aguantar nada.",
@@ -161,7 +172,7 @@ class RespiracionActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         instruccion.text = "Coja aire…"
         instruccion.setTextColor(Color.parseColor("#60A5FA"))
         circulo.animar(true, msCoger)
-        vibrar(longArrayOf(0, 350))
+        vibrar(longArrayOf(0, 600))
         // Solo se habla en los dos primeros ciclos: despues estorba mas
         // que ayuda, la idea es que se relaje, no que la escuche.
         if (ciclos <= 2) hablar("Coja aire")
@@ -174,7 +185,7 @@ class RespiracionActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         instruccion.text = "Suelte despacio…"
         instruccion.setTextColor(Color.parseColor("#4ADE80"))
         circulo.animar(false, msSoltar)
-        vibrar(longArrayOf(0, 200, 150, 200))
+        vibrar(longArrayOf(0, 300, 200, 300))
         if (ciclos <= 2) hablar("Suelte despacio")
         manos.postDelayed({ cogerAire() }, msSoltar)
     }
@@ -208,15 +219,69 @@ class RespiracionActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         boton.setBackgroundColor(Color.parseColor("#0B7A3B"))
     }
 
+    /**
+     * VIBRAR DE VERDAD, NO "PEDIR QUE VIBRE".
+     *
+     * La primera version no se notaba en el movil, y el motivo es que
+     * pedirle a Android que vibre no basta:
+     *
+     *  - Sin decirle la INTENSIDAD, muchos moviles usan la de las
+     *    notificaciones, que viene bajita de fabrica y con el telefono en
+     *    la mano apenas se aprecia. Ahora se pide el maximo (255).
+     *  - Sin decirle PARA QUE es, el sistema la trata como un aviso
+     *    cualquiera y la silencia en "no molestar" o en ahorro de
+     *    bateria. Marcandola como alarma, se respeta.
+     *  - Y los pulsos eran demasiado cortos. Se alargan: lo que hay que
+     *    notar con los ojos cerrados no puede durar un parpadeo.
+     */
     private fun vibrar(patron: LongArray) {
+        val v = vibrador ?: return
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                vibrador?.vibrate(VibrationEffect.createWaveform(patron, -1))
+                // Intensidad maxima en los tramos que vibran (los impares)
+                val fuerza = IntArray(patron.size) { i -> if (i % 2 == 1) 255 else 0 }
+                val efecto = VibrationEffect.createWaveform(patron, fuerza, -1)
+                val atributos = android.media.AudioAttributes.Builder()
+                    .setUsage(android.media.AudioAttributes.USAGE_ALARM)
+                    .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .build()
+                @Suppress("DEPRECATION")
+                v.vibrate(efecto, atributos)
             } else {
                 @Suppress("DEPRECATION")
-                vibrador?.vibrate(patron, -1)
+                v.vibrate(patron, -1)
             }
-        } catch (e: Exception) {}
+        } catch (e: Exception) {
+            // Ultimo recurso: la forma mas simple que existe.
+            try {
+                @Suppress("DEPRECATION")
+                v.vibrate(patron, -1)
+            } catch (e2: Exception) {}
+        }
+    }
+
+    /** ¿Este movil vibra siquiera? Mejor comprobarlo que suponerlo. */
+    private fun probarVibracion() {
+        if (vibrador == null) {
+            vibrador = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                (getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager)
+                    .defaultVibrator
+            } else {
+                @Suppress("DEPRECATION")
+                getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+            }
+        }
+        if (vibrador?.hasVibrator() != true) {
+            instruccion.text = "Este móvil no vibra"
+            instruccion.setTextColor(Color.parseColor("#F87171"))
+            restante.text = "Puede seguir el círculo de la pantalla igualmente."
+            return
+        }
+        vibrar(longArrayOf(0, 500, 200, 500))
+        instruccion.text = "¿Lo ha notado?"
+        instruccion.setTextColor(Color.WHITE)
+        restante.text = "Si no vibra, mire en los ajustes del móvil que la vibración " +
+                        "esté activada y que no esté en modo silencio total."
     }
 
     private fun hablar(f: String) {
