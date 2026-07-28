@@ -90,6 +90,11 @@
             android:exported="false"
             android:screenOrientation="portrait" />
 
+        <activity
+            android:name=".RespiracionActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
+
         <service
             android:name=".ServicioVigilancia"
             android:exported="false"

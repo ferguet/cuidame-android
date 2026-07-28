@@ -98,8 +98,12 @@ class MainActivity : AppCompatActivity() {
 
         col.addView(hueco(40))
         col.addView(texto("SALUD", 14f, Color.parseColor("#9AA4B2")))
-        col.addView(boton("Medir el pulso y la tensión", Color.parseColor("#7C2D6E")) {
+        col.addView(boton("Medir el pulso y la respiración", Color.parseColor("#7C2D6E")) {
             startActivity(Intent(this, PulsoActivity::class.java))
+        })
+
+        col.addView(boton("Respiración guiada (3 minutos)", Color.parseColor("#1E5F8E")) {
+            startActivity(Intent(this, RespiracionActivity::class.java))
         })
 
         col.addView(hueco(40))

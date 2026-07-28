@@ -440,10 +440,24 @@ class PulsoActivity : AppCompatActivity() {
                     "Repítala con el dedo bien quieto."
         }
 
+        // La respiracion sale del mismo dedo, sin pedir nada mas. Si no se
+        // ha podido leer, sencillamente no se enseña: mejor omitirla que
+        // dar un numero inventado.
+        val resp = analizador.respiracion()
+        val textoResp = when {
+            resp == null -> ""
+            resp > 20 -> "\nRespiración: $resp por minuto — algo acelerada. " +
+                         "Si le pasa estando en reposo y sin haberse movido, " +
+                         "coménteselo a su médico.\n"
+            resp < 10 -> "\nRespiración: $resp por minuto — lenta.\n"
+            else -> "\nRespiración: $resp por minuto — normal.\n"
+        }
+
         resultado.text = "$textoRitmo\n\n" +
                          "────────────\n\n" +
                          "${r.pulsaciones} pulsaciones por minuto\n" +
-                         "$comentarioPulso\n\n" +
+                         "$comentarioPulso\n" +
+                         textoResp + "\n" +
                          "Tensión: $comentarioTension\n" +
                          "(variabilidad ${r.rmssd.toInt()} ms, ${r.latidos} latidos)\n\n" +
                          fiabilidad

@@ -93,6 +93,89 @@ class AnalizadorPulso {
     /** Un trozo de la onda para dibujar, ya limpia de deriva. */
     class Onda(val puntos: FloatArray, val picos: IntArray)
 
+    /**
+     * CUANTAS VECES RESPIRA POR MINUTO
+     * ================================
+     *
+     * Sale del MISMO dedo, sin pedirle nada nuevo a la persona, y esa es
+     * la mitad de su gracia.
+     *
+     * COMO ES POSIBLE
+     *
+     * Al respirar, el pecho cambia la presion dentro del torax y eso
+     * altera un poquito la cantidad de sangre que llega al dedo. El
+     * resultado es que el brillo de fondo -no los latidos, el fondo sobre
+     * el que cabalgan- sube y baja despacio, al compas de la respiracion.
+     *
+     * Fijate en lo que hacemos aqui: es EXACTAMENTE lo que tiramos a la
+     * basura para medir el pulso. Alli quitabamos el vaiven lento por ser
+     * estorbo; aqui el vaiven lento ES el dato y lo que estorba son los
+     * latidos. La misma señal contiene las dos cosas, solo hay que mirar
+     * a distinta velocidad.
+     *
+     * POR QUE MERECE LA PENA
+     *
+     * La respiracion es la constante vital mas desatendida de todas. Sube
+     * ANTES que el pulso y antes que la fiebre cuando algo va mal: una
+     * neumonia que empieza, un corazon que se descompensa, una infeccion.
+     * Los hospitales la usan en sus escalas de alerta precoz justo por
+     * eso. Y en casa no la mira nadie, porque contar respiraciones un
+     * minuto entero es incomodo y se olvida.
+     *
+     * Aqui sale sola, de regalo, cada vez que alguien se toma el pulso.
+     */
+    fun respiracion(): Int? {
+        if (valores.size < 400) return null          // menos de ~13 s no da
+        val n = valores.size
+
+        // 1. Aplanar los latidos. Una media movil de medio segundo se come
+        //    el pulso (que va a mas de un latido por segundo) y deja el
+        //    vaiven de la respiracion intacto.
+        val v1 = 15
+        val fondo = DoubleArray(n)
+        for (i in 0 until n) {
+            var s = 0.0; var c = 0
+            for (j in maxOf(0, i - v1)..minOf(n - 1, i + v1)) { s += valores[j]; c++ }
+            fondo[i] = s / c
+        }
+
+        // 2. Quitar la deriva muy lenta (el dedo que se calienta, la mano
+        //    que cede). Ventana de unos 5 segundos.
+        val v2 = 150
+        val onda = DoubleArray(n)
+        for (i in 0 until n) {
+            var s = 0.0; var c = 0
+            for (j in maxOf(0, i - v2)..minOf(n - 1, i + v2)) { s += fondo[j]; c++ }
+            onda[i] = fondo[i] - s / c
+        }
+
+        val media = onda.average()
+        val desv = sqrt(onda.sumOf { (it - media) * (it - media) } / n)
+        if (desv < 0.02) return null                 // no se aprecia respiracion
+
+        // 3. Contar las subidas. Separacion minima de 1,5 segundos: mas de
+        //    40 respiraciones por minuto no lo hace nadie sentado.
+        val muestrasPorSegundo = n.toDouble() /
+            ((tiempos.last() - tiempos.first()) / 1000.0).coerceAtLeast(1.0)
+        val separacionMinima = (1.5 * muestrasPorSegundo).toInt().coerceAtLeast(5)
+
+        var ciclos = 0
+        var ultimo = -separacionMinima
+        for (i in 1 until n - 1) {
+            if (onda[i] > desv * 0.5 && onda[i] >= onda[i - 1] && onda[i] >= onda[i + 1]) {
+                if (i - ultimo >= separacionMinima) { ciclos++; ultimo = i }
+            }
+        }
+
+        val segundos = (tiempos.last() - tiempos.first()) / 1000.0
+        if (segundos < 12) return null
+        val porMinuto = (ciclos * 60.0 / segundos).toInt()
+
+        // Fuera de este rango, en alguien sentado midiendose el pulso, es
+        // un fallo de lectura y no una respiracion rara. Mejor callarse.
+        return if (porMinuto in 8..30) porMinuto else null
+    }
+
     /** Como de firme esta el dedo en este instante. */
     fun firmezaActual(): Firmeza {
         if (valores.size < 40) return Firmeza.SIN_DEDO
