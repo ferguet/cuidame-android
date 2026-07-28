@@ -106,6 +106,10 @@ class MainActivity : AppCompatActivity() {
             startActivity(Intent(this, RespiracionActivity::class.java))
         })
 
+        col.addView(boton("Mirar el ojo (anemia e ictericia)", Color.parseColor("#0E7490")) {
+            startActivity(Intent(this, FotoOjoActivity::class.java))
+        })
+
         col.addView(hueco(40))
         col.addView(texto("PERMISOS", 14f, Color.parseColor("#9AA4B2")))
         permisos = texto("", 16f, Color.parseColor("#9AA4B2"))
