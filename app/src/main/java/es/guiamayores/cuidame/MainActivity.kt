@@ -5,10 +5,12 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.Bundle
 import android.text.InputType
 import android.view.Gravity
+import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.EditText
@@ -74,37 +76,87 @@ class MainActivity : AppCompatActivity() {
         ))
 
         estado = texto("", 21f, Color.WHITE, negrita = true).apply {
-            setPadding(28, 28, 28, 28)
+            setPadding(34, 34, 34, 34)
             gravity = Gravity.CENTER
         }
         col.addView(hueco(28))
         col.addView(estado)
 
         interruptor = boton("", Color.parseColor("#0B7A3B")) { alternar() }
+        interruptor.textSize = 22f
+        interruptor.layoutParams = LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, 200
+        ).apply { topMargin = 22 }
         col.addView(interruptor)
 
-        col.addView(hueco(40))
-        col.addView(texto("QUIÉN ES LA PERSONA", 14f, Color.parseColor("#9AA4B2")))
-        cPersona = campo("Su nombre. Ej: Antonia", InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_WORDS)
+        // =====================================================
+        //  ARRIBA: LO QUE USA LA PERSONA MAYOR
+        // =====================================================
+        //
+        // Esta pantalla la miran dos personas muy distintas, y antes
+        // estaban mezcladas. La persona mayor solo quiere ver si esta
+        // protegida y poder medirse el pulso; los datos de contacto, los
+        // permisos y las pruebas los rellena una vez un hijo o el cuidador
+        // y no se vuelven a tocar.
+        //
+        // Poner las dos cosas al mismo tamaño obliga a la persona mayor a
+        // leerse y descartar seis botones que no son para ella cada vez que
+        // abre la app. Asi que lo suyo va arriba y grande, y la
+        // configuracion abajo y pequeña. El orden y el tamaño ya explican
+        // que es de cada uno, sin tener que leer nada.
+        col.addView(hueco(36))
+        col.addView(rotulo("QUÉ PUEDE MEDIRSE"))
+
+        col.addView(botonIcono("❤️", "El pulso", "Latidos, ritmo y respiración",
+            "#7C2D6E") { startActivity(Intent(this, PulsoActivity::class.java)) })
+
+        col.addView(botonIcono("🌬️", "Respirar despacio", "Ejercicio de 3 minutos para calmarse",
+            "#1E5F8E") { startActivity(Intent(this, RespiracionActivity::class.java)) })
+
+        col.addView(botonIcono("👀", "Mirar el ojo", "Ver si hay anemia o color amarillo",
+            "#0E7490") { startActivity(Intent(this, FotoOjoActivity::class.java)) })
+
+        col.addView(botonIcono("✋", "El temblor", "De las manos, en dos posturas",
+            "#5B21B6") { startActivity(Intent(this, TemblorActivity::class.java)) })
+
+        col.addView(botonIcono("📋", "Mis mediciones", "Lo medido otros días, para el médico",
+            "#0F766E") { startActivity(Intent(this, HistorialActivity::class.java)) })
+
+        // =====================================================
+        //  ABAJO Y PEQUEÑO: LO QUE CONFIGURA QUIEN LE CUIDA
+        // =====================================================
+        col.addView(hueco(64))
+        col.addView(separador())
+        col.addView(rotulo("PARA QUIEN LE CUIDA"))
+        col.addView(texto(
+            "Esto se rellena una vez, normalmente un hijo o el cuidador. " +
+            "Después ya no hay que volver a tocarlo.",
+            14f, Color.parseColor("#6C7689")
+        ))
+
+        col.addView(hueco(16))
+        col.addView(texto("Nombre de la persona mayor", 13f, Color.parseColor("#6C7689")))
+        cPersona = campo("Ej: Antonia", InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_WORDS)
         col.addView(cPersona)
 
-        col.addView(hueco(28))
-        col.addView(texto("A QUIÉN SE AVISA", 14f, Color.parseColor("#9AA4B2")))
-        cNombre = campo("Nombre. Ej: Mi hija Marta", InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_WORDS)
+        col.addView(hueco(14))
+        col.addView(texto("A quién se avisa si se cae", 13f, Color.parseColor("#6C7689")))
+        cNombre = campo("Ej: Mi hija Marta", InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_WORDS)
         col.addView(cNombre)
         cTelefono = campo("Teléfono móvil", InputType.TYPE_CLASS_PHONE)
         col.addView(cTelefono)
 
         // ANTES AQUI HABIA UN BOTON QUE PONIA "GUARDAR", Y ERA UN ERROR.
         //
-        // "Guardar" no le dice a nadie que va a pasar despues. La persona
-        // rellenaba los datos, veia "guardar", lo pulsaba... y se quedaba
-        // igual, sin saber si ya estaba protegida o le faltaba algo. Y si
-        // en vez de eso pulsaba arriba, tampoco pasaba nada visible.
+        // "Guardar" no le dice a nadie que va a pasar despues. Se
+        // rellenaban los datos, se veia "guardar", se pulsaba... y uno se
+        // quedaba igual, sin saber si ya estaba protegida la persona.
         //
         // Ahora el boton dice lo que HACE y hace las dos cosas de una vez:
         // guarda y arranca la vigilancia. Va justo debajo de los datos,
-        // que es donde uno acaba de escribir y mira a continuacion.
+        // que es donde uno acaba de escribir y mira a continuacion. Es lo
+        // unico de esta zona que se mantiene grande, porque es la accion
+        // que deja la app en marcha.
         arrancarAqui = boton("GUARDAR Y EMPEZAR A VIGILAR", Color.parseColor("#0B7A3B")) {
             guardarYArrancar()
         }
@@ -123,39 +175,15 @@ class MainActivity : AppCompatActivity() {
             })
         }
 
-        col.addView(hueco(40))
-        col.addView(texto("SALUD", 14f, Color.parseColor("#9AA4B2")))
-        col.addView(boton("Medir el pulso y la respiración", Color.parseColor("#7C2D6E")) {
-            startActivity(Intent(this, PulsoActivity::class.java))
-        })
-
-        col.addView(boton("Respiración guiada (3 minutos)", Color.parseColor("#1E5F8E")) {
-            startActivity(Intent(this, RespiracionActivity::class.java))
-        })
-
-        col.addView(boton("Mirar el ojo (anemia e ictericia)", Color.parseColor("#0E7490")) {
-            startActivity(Intent(this, FotoOjoActivity::class.java))
-        })
-
-        col.addView(boton("Medir el temblor de las manos", Color.parseColor("#5B21B6")) {
-            startActivity(Intent(this, TemblorActivity::class.java))
-        })
-
         col.addView(hueco(30))
-        col.addView(boton("📋  MIS MEDICIONES", Color.parseColor("#0F766E")) {
-            startActivity(Intent(this, HistorialActivity::class.java))
-        })
-
-        col.addView(hueco(40))
-        col.addView(texto("PERMISOS", 14f, Color.parseColor("#9AA4B2")))
-        permisos = texto("", 16f, Color.parseColor("#9AA4B2"))
+        permisos = texto("", 14f, Color.parseColor("#9AA4B2"))
         col.addView(permisos)
 
         // Si el permiso se rechaza dos veces, Android DEJA DE PREGUNTAR y
         // el boton normal ya no hace nada. La unica salida es ir a los
         // ajustes de la app a mano, y encontrarlos no es evidente. Este
         // boton lleva directo.
-        col.addView(boton("Abrir los permisos de la app", Color.parseColor("#1D4ED8")) {
+        col.addView(botonPequeno("⚙️  Permisos de la app", "#1D4ED8") {
             try {
                 startActivity(Intent(
                     android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
@@ -167,35 +195,34 @@ class MainActivity : AppCompatActivity() {
             }
         })
 
-        col.addView(hueco(44))
-        col.addView(texto("PROBARLO SIN CAERSE", 14f, Color.parseColor("#9AA4B2")))
+        col.addView(hueco(26))
         col.addView(texto(
-            "Nadie debería fiarse de esto sin haberlo visto funcionar antes.",
-            15f, Color.parseColor("#9AA4B2")
+            "Probarlo sin caerse — nadie debería fiarse de esto sin haberlo visto funcionar antes.",
+            13f, Color.parseColor("#6C7689")
         ))
 
-        col.addView(boton("Ver la alarma (no avisa a nadie)", Color.parseColor("#B45309")) {
+        col.addView(botonPequeno("🔔  Ver la alarma (no avisa a nadie)", "#B45309") {
             startActivity(Intent(this, AlarmaActivity::class.java).apply {
                 putExtra(AlarmaActivity.EXTRA_PRUEBA, true)
                 putExtra(AlarmaActivity.EXTRA_MOTIVO, "se ha caído")
             })
         })
 
-        col.addView(boton("Mandar un mensaje de prueba de verdad", Color.parseColor("#7A1A15")) {
+        col.addView(botonPequeno("✉️  Mandar un mensaje de prueba de verdad", "#7A1A15") {
             probarMensaje()
         })
 
-        col.addView(boton("Ver los sensores en vivo", Color.parseColor("#334155")) {
+        col.addView(botonPequeno("📈  Ver los sensores en vivo", "#334155") {
             startActivity(Intent(this, DiagnosticoActivity::class.java))
         })
 
-        col.addView(hueco(40))
+        col.addView(hueco(34))
         col.addView(texto(
             "Para que funcione, el móvil tiene que ir encima de la persona: " +
             "en el bolsillo detecta bien; en un bolso, peor; encima de la mesa, no detecta nada.\n\n" +
             "Esto es una ayuda más, no una garantía. No sustituye a un aviso médico " +
             "ni al 112.",
-            14f, Color.parseColor("#6C7689")
+            13f, Color.parseColor("#6C7689")
         ))
 
         setContentView(ScrollView(this).apply {
@@ -217,10 +244,10 @@ class MainActivity : AppCompatActivity() {
         if (::arrancarAqui.isInitialized) {
             if (activa && ServicioVigilancia.activo) {
                 arrancarAqui.text = "GUARDAR LOS DATOS"
-                arrancarAqui.setBackgroundColor(Color.parseColor("#1D4ED8"))
+                pintar(arrancarAqui, Color.parseColor("#1D4ED8"))
             } else {
                 arrancarAqui.text = "GUARDAR Y EMPEZAR A VIGILAR"
-                arrancarAqui.setBackgroundColor(Color.parseColor("#0B7A3B"))
+                pintar(arrancarAqui, Color.parseColor("#0B7A3B"))
             }
         }
 
@@ -250,32 +277,35 @@ class MainActivity : AppCompatActivity() {
             estado.text = "⚠️ NO está vigilando\n\n" +
                           "Debería estarlo, pero se ha parado.\n\n" +
                           "Toque el botón verde que pone:\nVOLVER A ACTIVAR"
-            estado.setBackgroundColor(Color.parseColor("#B45309"))
-            interruptor.text = "VOLVER A ACTIVAR"
-            interruptor.setBackgroundColor(Color.parseColor("#0B7A3B"))
+            estado.background = fondo(Color.parseColor("#B45309"))
+            interruptor.text = "🔔  VOLVER A ACTIVAR"
+            pintar(interruptor, Color.parseColor("#0B7A3B"))
             return
         }
 
         if (activa) {
             estado.text = "✅ Vigilando\n\nYa está todo listo.\n" +
                           "Puede guardarse el móvil en el bolsillo y olvidarse."
-            estado.setBackgroundColor(Color.parseColor("#0B7A3B"))
-            interruptor.text = "DEJAR DE VIGILAR"
-            interruptor.setBackgroundColor(Color.parseColor("#7A1A15"))
+            estado.background = fondo(Color.parseColor("#0B7A3B"))
+            interruptor.text = "🔕  DEJAR DE VIGILAR"
+            pintar(interruptor, Color.parseColor("#7A1A15"))
         } else if (!ajustes.estaConfigurada()) {
+            // Los datos ya no estan justo debajo: se han bajado al final,
+            // a la zona de quien le cuida. Asi que el aviso tiene que
+            // decir DONDE ir, no solo que falta.
             estado.text = "Falta el teléfono\n\n" +
-                          "Escriba abajo el teléfono móvil de la persona que quiere " +
-                          "que le avise.\n\n" +
+                          "Baje del todo, hasta donde pone\nPARA QUIEN LE CUIDA,\n" +
+                          "y escriba el teléfono móvil de quien tiene que recibir el aviso.\n\n" +
                           "Luego toque el botón verde:\nGUARDAR Y EMPEZAR A VIGILAR"
-            estado.setBackgroundColor(Color.parseColor("#B45309"))
-            interruptor.text = "EMPEZAR A VIGILAR"
-            interruptor.setBackgroundColor(Color.parseColor("#334155"))
+            estado.background = fondo(Color.parseColor("#B45309"))
+            interruptor.text = "🔔  EMPEZAR A VIGILAR"
+            pintar(interruptor, Color.parseColor("#334155"))
         } else {
             estado.text = "No está vigilando\n\n" +
                           "Toque el botón verde que pone:\nEMPEZAR A VIGILAR"
-            estado.setBackgroundColor(Color.parseColor("#334155"))
-            interruptor.text = "EMPEZAR A VIGILAR"
-            interruptor.setBackgroundColor(Color.parseColor("#0B7A3B"))
+            estado.background = fondo(Color.parseColor("#334155"))
+            interruptor.text = "🔔  EMPEZAR A VIGILAR"
+            pintar(interruptor, Color.parseColor("#0B7A3B"))
         }
     }
 
@@ -323,7 +353,7 @@ class MainActivity : AppCompatActivity() {
         if (!ajustes.estaConfigurada()) {
             Toast.makeText(
                 this,
-                "Antes escriba su nombre y el teléfono de contacto, y toque GUARDAR",
+                "Falta el teléfono. Está abajo del todo, en PARA QUIEN LE CUIDA",
                 Toast.LENGTH_LONG
             ).show()
             return
@@ -362,7 +392,7 @@ class MainActivity : AppCompatActivity() {
     private fun probarMensaje() {
         guardar()
         if (!ajustes.estaConfigurada()) {
-            Toast.makeText(this, "Rellene el nombre y el teléfono primero", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "Escriba primero el teléfono de contacto", Toast.LENGTH_LONG).show()
             return
         }
         val quien = ajustes.nombrePersona.ifBlank { "esta persona" }
@@ -403,30 +433,137 @@ class MainActivity : AppCompatActivity() {
             setPadding(0, 10, 0, 10)
         }
 
+    /** Rotulillo de seccion, en gris y pequeño: separa sin gritar. */
+    private fun rotulo(t: String) = TextView(this).apply {
+        text = t
+        textSize = 13f
+        setTextColor(Color.parseColor("#7E8AA0"))
+        setTypeface(typeface, Typeface.BOLD)
+        letterSpacing = 0.14f
+        setPadding(0, 8, 0, 8)
+    }
+
+    private fun separador() = View(this).apply {
+        setBackgroundColor(Color.parseColor("#25314A"))
+        layoutParams = LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, 2
+        ).apply { bottomMargin = 26 }
+    }
+
+    /** Fondo de color con esquinas redondeadas. */
+    private fun fondo(color: Int, radio: Float = 26f) = GradientDrawable().apply {
+        setColor(color)
+        cornerRadius = radio
+    }
+
+    private fun pintar(b: Button, color: Int) { b.background = fondo(color) }
+
     private fun campo(pista: String, tipo: Int) = EditText(this).apply {
         hint = pista
         inputType = tipo
-        textSize = 20f
+        textSize = 18f
         setTextColor(Color.WHITE)
         setHintTextColor(Color.parseColor("#6C7689"))
-        setBackgroundColor(Color.parseColor("#1C2434"))
-        setPadding(28, 30, 28, 30)
+        background = fondo(Color.parseColor("#1C2434"), 16f)
+        setPadding(26, 26, 26, 26)
         layoutParams = LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
-        ).apply { topMargin = 14 }
+        ).apply { topMargin = 12 }
     }
 
     private fun boton(t: String, color: Int, alPulsar: () -> Unit) = Button(this).apply {
         text = t
         textSize = 20f
         setTextColor(Color.WHITE)
-        setBackgroundColor(color)
+        background = fondo(color)
         setTypeface(typeface, Typeface.BOLD)
         layoutParams = LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, 170
         ).apply { topMargin = 22 }
         setOnClickListener { alPulsar() }
     }
+
+    /**
+     * BOTON CON DIBUJO, PARA QUIEN NO VE BIEN
+     * =======================================
+     *
+     * Un boton de texto obliga a leer para saber que hace, y leer es justo
+     * lo que peor se le da a quien tiene la vista cansada o poca costumbre
+     * con el movil. Un dibujo grande se reconoce de un golpe, incluso
+     * borroso y sin gafas: el corazon rojo se distingue del ojo aunque no
+     * se lean las letras.
+     *
+     * El dibujo va enorme a proposito (52sp, mas del doble que el texto) y
+     * cada boton lleva ademas un color distinto. Asi hay TRES pistas para
+     * encontrar el mismo boton -sitio, dibujo y color- y basta con acertar
+     * una. Quien no lea nada acaba pulsando "el del corazon" o "el morado",
+     * y llega igual.
+     *
+     * Debajo del titulo va una linea explicando en palabras normales que
+     * hace, porque "El pulso" solo no dice si va a medir, a enseñar algo
+     * viejo o a llamar a alguien.
+     */
+    private fun botonIcono(
+        icono: String,
+        titulo: String,
+        explicacion: String,
+        colorHex: String,
+        alPulsar: () -> Unit
+    ) = LinearLayout(this).apply {
+        orientation = LinearLayout.HORIZONTAL
+        gravity = Gravity.CENTER_VERTICAL
+        background = fondo(Color.parseColor(colorHex))
+        setPadding(30, 30, 30, 30)
+        isClickable = true
+        layoutParams = LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        ).apply { topMargin = 20 }
+
+        addView(TextView(this@MainActivity).apply {
+            text = icono
+            textSize = 52f
+            setPadding(0, 0, 32, 0)
+        })
+
+        addView(LinearLayout(this@MainActivity).apply {
+            orientation = LinearLayout.VERTICAL
+            addView(TextView(this@MainActivity).apply {
+                text = titulo
+                textSize = 25f
+                setTextColor(Color.WHITE)
+                setTypeface(typeface, Typeface.BOLD)
+            })
+            addView(TextView(this@MainActivity).apply {
+                text = explicacion
+                textSize = 15f
+                setTextColor(Color.parseColor("#DCE3F0"))
+            })
+        })
+
+        setOnClickListener { alPulsar() }
+    }
+
+    /**
+     * Boton discreto de la zona de configuracion.
+     *
+     * Es pequeño a proposito. No es que importe menos -el permiso de
+     * mensajes es lo que hace que el aviso llegue-, es que lo toca otra
+     * persona y una sola vez. Si tuviera el mismo tamaño que "El pulso",
+     * competiria por la atencion de quien abre la app veinte veces al mes
+     * y no tiene nada que hacer aqui.
+     */
+    private fun botonPequeno(t: String, colorHex: String, alPulsar: () -> Unit) =
+        Button(this).apply {
+            text = t
+            textSize = 15f
+            setTextColor(Color.parseColor("#E6EAF2"))
+            background = fondo(Color.parseColor(colorHex), 18f)
+            setAllCaps(false)
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, 118
+            ).apply { topMargin = 12 }
+            setOnClickListener { alPulsar() }
+        }
 
     private fun hueco(alto: Int) = TextView(this).apply {
         layoutParams = LinearLayout.LayoutParams(
