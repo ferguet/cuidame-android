@@ -49,6 +49,40 @@ class Ajustes(contexto: Context) {
         set(v) = p.edit().putInt("horaFin", v).apply()
 
     /**
+     * DONDE ESTA LA CASA, APRENDIDO SOLO.
+     *
+     * Nadie escribe su direccion aqui: escribir es justo lo que no puede
+     * hacer la persona a la que va dirigida esta app. Se aprende sola,
+     * mirando donde esta el movil de madrugada. Un movil pasa la noche en
+     * casa practicamente siempre, asi que en una semana el dato es firme
+     * sin haber preguntado nada a nadie.
+     *
+     * Sirve para una sola cosa, pero importante: que el aviso pueda decir
+     * "esta en casa" o "esta FUERA de casa". Para quien recibe el mensaje
+     * esas dos frases llevan a hacer cosas distintas -subir a mirar, o
+     * salir a buscar-, y un enlace de mapa a secas obliga a abrirlo e
+     * interpretarlo, que es tiempo perdido con el susto en el cuerpo.
+     *
+     * Son dos numeros guardados en el propio movil. No se mandan a ningun
+     * sitio ni se guarda ningun recorrido: solo el ultimo sitio conocido
+     * de dormir, machacado cada noche.
+     */
+    var latitudCasa: Float
+        get() = p.getFloat("latCasa", 0f)
+        set(v) = p.edit().putFloat("latCasa", v).apply()
+
+    var longitudCasa: Float
+        get() = p.getFloat("lonCasa", 0f)
+        set(v) = p.edit().putFloat("lonCasa", v).apply()
+
+    fun sabeDondeEsLaCasa(): Boolean = latitudCasa != 0f || longitudCasa != 0f
+
+    /** Para no repetir el aviso de bateria una y otra vez. */
+    var avisadaBateria: Boolean
+        get() = p.getBoolean("avisadaBateria", false)
+        set(v) = p.edit().putBoolean("avisadaBateria", v).apply()
+
+    /**
      * LO UNICO IMPRESCINDIBLE ES EL TELEFONO.
      *
      * Antes tambien se exigia el nombre de la persona, y eso bloqueaba la

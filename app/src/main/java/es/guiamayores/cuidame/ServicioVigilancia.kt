@@ -69,6 +69,17 @@ class ServicioVigilancia : Service(), SensorEventListener {
         var activo = false
             internal set
 
+        /**
+         * Hasta cuando no se vigilan caidas.
+         *
+         * Lo pone la pantalla de alarma cuando la persona dice "estoy
+         * bien". Levantarse del suelo genera golpes seguidos de quietud,
+         * que es exactamente lo que busca el detector, y sin esto la app
+         * volvia a dar la alarma a los pocos segundos de haberla quitado.
+         */
+        @Volatile
+        var tregua = 0L
+
         fun arrancar(contexto: Context) {
             val i = Intent(contexto, ServicioVigilancia::class.java)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -172,7 +183,7 @@ class ServicioVigilancia : Service(), SensorEventListener {
             detector.marcarMovimiento(ahora)
             return
         }
-        if (ahora < rearmarDesde) {
+        if (ahora < rearmarDesde || ahora < tregua) {
             detector.marcarMovimiento(ahora)
             return
         }
@@ -187,6 +198,8 @@ class ServicioVigilancia : Service(), SensorEventListener {
         if (ahora - ultimaComprobacionQuietud > 60_000L) {
             ultimaComprobacionQuietud = ahora
             comprobarInmovilidad(ahora)
+            comprobarBateria()
+            aprenderDondeDuerme()
         }
     }
 
@@ -196,9 +209,56 @@ class ServicioVigilancia : Service(), SensorEventListener {
 
         val limite = ajustes.horasSinMoverse * 60L * 60L * 1000L
         if (ahora - detector.ultimoMovimiento > limite) {
-            dispararAlarma("lleva ${ajustes.horasSinMoverse} horas sin moverse")
+            dispararAlarma(
+                "lleva ${ajustes.horasSinMoverse} horas sin moverse",
+                AlarmaActivity.TIPO_INMOVILIDAD
+            )
             detector.marcarMovimiento(ahora)   // para no repetir en bucle
         }
+    }
+
+    /**
+     * EL AGUJERO DE LA BATERIA.
+     *
+     * Una app de vigilancia que se apaga sin decir nada es peor que no
+     * tener ninguna, porque la familia se queda tranquila creyendo que
+     * alguien mira. Y el movil que se queda sin bateria es la causa mas
+     * corriente de que eso pase: nadie se da cuenta de que ha dejado de
+     * vigilar hasta que hace falta.
+     *
+     * Asi que cuando queda poca, se avisa al contacto -no a la persona
+     * mayor, que probablemente no lo vea- de que hay que recordarle que
+     * cargue el movil. Se manda una sola vez por descarga: se rearma solo
+     * cuando el movil vuelve a subir del 40%.
+     */
+    private fun comprobarBateria() {
+        try {
+            val bm = getSystemService(Context.BATTERY_SERVICE) as android.os.BatteryManager
+            val nivel = bm.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CAPACITY)
+            if (nivel <= 0) return
+
+            if (nivel > 40 && ajustes.avisadaBateria) {
+                ajustes.avisadaBateria = false
+                return
+            }
+            if (nivel <= 10 && !ajustes.avisadaBateria) {
+                ajustes.avisadaBateria = true
+                Avisador.enviar(this, Avisador.mensajeBateria(this))
+                Historial.añadir(this, "Batería",
+                    "quedaba un $nivel% · avisado el contacto", "")
+            }
+        } catch (e: Exception) {}
+    }
+
+    /**
+     * De madrugada se apunta donde esta el movil: eso es la casa.
+     *
+     * Asi el aviso puede decir "está en casa" o "está FUERA de casa" sin
+     * que nadie haya tenido que escribir una direccion en ningun sitio.
+     */
+    private fun aprenderDondeDuerme() {
+        val hora = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
+        if (hora == 4) Avisador.aprenderCasa(this)
     }
 
     /**
@@ -222,7 +282,7 @@ class ServicioVigilancia : Service(), SensorEventListener {
      * no dejara pintar nada, el movil suena. Que suene importa mas que
      * lo que se vea: lo oye la persona y lo oye quien este en la casa.
      */
-    private fun dispararAlarma(motivo: String) {
+    private fun dispararAlarma(motivo: String, tipo: String = "caida") {
         rearmarDesde = System.currentTimeMillis() + 4000L
         detector.reiniciar()
         detector.marcarMovimiento()
@@ -232,6 +292,7 @@ class ServicioVigilancia : Service(), SensorEventListener {
         val i = Intent(this, AlarmaActivity::class.java).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
             putExtra(AlarmaActivity.EXTRA_MOTIVO, motivo)
+            putExtra(AlarmaActivity.EXTRA_TIPO, tipo)
         }
         val pi = PendingIntent.getActivity(
             this, 1, i,

@@ -46,7 +46,11 @@ class AlarmaActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     companion object {
         const val EXTRA_MOTIVO = "motivo"
         const val EXTRA_PRUEBA = "prueba"
-        private const val SEGUNDOS = 60
+
+        /** "caida" o "inmovilidad". Cambian el tiempo de espera y si se
+         *  puede cancelar sola al mover el movil. */
+        const val EXTRA_TIPO = "tipo"
+        const val TIPO_INMOVILIDAD = "inmovilidad"
 
         /**
          * Si la alarma esta ahora mismo en pantalla.
@@ -74,9 +78,29 @@ class AlarmaActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private lateinit var titulo: TextView
     private lateinit var reloj: TextView
     private lateinit var explicacion: TextView
+    private lateinit var raiz: LinearLayout
+    private lateinit var botonGrande: Button
 
     private val motivo: String get() = intent.getStringExtra(EXTRA_MOTIVO) ?: "puede haberse caído"
     private val esPrueba: Boolean get() = intent.getBooleanExtra(EXTRA_PRUEBA, false)
+    private val esInmovilidad: Boolean
+        get() = intent.getStringExtra(EXTRA_TIPO) == TIPO_INMOVILIDAD
+
+    /**
+     * CUANTO SE ESPERA ANTES DE AVISAR, SEGUN LO QUE HAYA PASADO.
+     *
+     * Un minuto para una caida: la persona esta al lado del movil y cada
+     * segundo cuenta.
+     *
+     * Tres minutos si lo que pasa es que el movil lleva horas quieto. Ahi
+     * la situacion es completamente distinta: lo mas probable no es que
+     * haya pasado algo, sino que el movil se haya quedado olvidado en otra
+     * habitacion. La persona tiene que oirlo, levantarse, buscarlo y
+     * llegar hasta el. Un minuto no da para eso, y avisar a la familia
+     * porque alguien tardo noventa segundos en encontrar su propio movil
+     * es la clase de falsa alarma que hace que se desinstale la app.
+     */
+    private val segundos: Int get() = if (esInmovilidad) 180 else 60
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -86,7 +110,124 @@ class AlarmaActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         voz = TextToSpeech(this, this)
         construirPantalla()
         empezarRuido()
+        empezarParpadeo()
+        if (esInmovilidad) escucharMovimiento()
         empezarCuenta()
+    }
+
+    // ---------------------------------------------------------------
+    //  LA PANTALLA COMO BALIZA: PARPADEO AZUL Y ROJO
+    // ---------------------------------------------------------------
+    //
+    // De noche, una persona en el suelo de un pasillo a oscuras es
+    // practicamente invisible desde la puerta. Una pantalla fija apenas
+    // llama la atencion; una que parpadea en azul y rojo se ve desde el
+    // otro extremo de la casa, se reconoce al instante como "algo va mal"
+    // y sirve de guia para llegar hasta ella. Es exactamente para lo que
+    // usan esos dos colores las ambulancias.
+    //
+    // Va a poco mas de un parpadeo por segundo, y eso es deliberado: las
+    // luces que parpadean por encima de tres veces por segundo pueden
+    // provocar crisis a personas con epilepsia fotosensible. Una baliza
+    // que se ve igual de bien yendo despacio no tiene ninguna razon para
+    // ir deprisa.
+    //
+    // Y sigue parpadeando DESPUES de mandar el aviso, que es cuando de
+    // verdad hace falta: para entonces la persona puede estar inconsciente
+    // y lo que importa es que quien llegue la encuentre cuanto antes.
+
+    private val pintor = android.os.Handler(android.os.Looper.getMainLooper())
+    private var enRojo = true
+    private var parpadeando = false
+
+    private val parpadeo = object : Runnable {
+        override fun run() {
+            if (!parpadeando) return
+            enRojo = !enRojo
+            raiz.setBackgroundColor(
+                if (enRojo) Color.parseColor("#B3261E") else Color.parseColor("#1D4ED8")
+            )
+            pintor.postDelayed(this, 450)
+        }
+    }
+
+    private fun empezarParpadeo() {
+        parpadeando = true
+        // La pantalla al maximo de brillo: una baliza a media luz no se ve
+        // desde la puerta, y en ese momento la bateria da igual.
+        try {
+            val p = window.attributes
+            p.screenBrightness = 1f
+            window.attributes = p
+        } catch (e: Exception) {}
+        pintor.postDelayed(parpadeo, 450)
+    }
+
+    private fun pararParpadeo(colorFinal: String) {
+        parpadeando = false
+        pintor.removeCallbacks(parpadeo)
+        try { raiz.setBackgroundColor(Color.parseColor(colorFinal)) } catch (e: Exception) {}
+    }
+
+    // ---------------------------------------------------------------
+    //  SI ALGUIEN COGE EL MOVIL, SE CANCELA SOLO
+    // ---------------------------------------------------------------
+    //
+    // Solo para el aviso por falta de movimiento, y es la pieza que hace
+    // que ese aviso sea usable. El movil suena porque lleva horas quieto;
+    // si a los veinte segundos alguien lo coge, ya esta todo dicho: la
+    // persona esta bien, ha oido el ruido y ha llegado hasta el. Pedirle
+    // ademas que acierte a pulsar un boton es poner una barrera donde ya
+    // hay una respuesta.
+    //
+    // En una caida NO se hace esto: ahi el movil se mueve porque la
+    // persona esta en el suelo removiendose, y cancelar por eso seria
+    // justo lo contrario de lo que hay que hacer. Ahi hay que pulsar.
+
+    private var sensores: android.hardware.SensorManager? = null
+    private var oyente: android.hardware.SensorEventListener? = null
+    private var seguidas = 0
+
+    private fun escucharMovimiento() {
+        try {
+            val sm = getSystemService(SENSOR_SERVICE) as android.hardware.SensorManager
+            val acc = sm.getDefaultSensor(android.hardware.Sensor.TYPE_ACCELEROMETER) ?: return
+            oyente = object : android.hardware.SensorEventListener {
+                override fun onAccuracyChanged(s: android.hardware.Sensor?, a: Int) {}
+                override fun onSensorChanged(e: android.hardware.SensorEvent?) {
+                    if (e == null || yaResuelto) return
+                    val f = kotlin.math.sqrt(
+                        e.values[0] * e.values[0] + e.values[1] * e.values[1] +
+                        e.values[2] * e.values[2]
+                    )
+                    // Coger un movil de la mesa da tirones muy por encima de
+                    // esto. Se piden varias lecturas seguidas para que un
+                    // portazo o un golpe en el mueble no lo cancelen.
+                    if (kotlin.math.abs(f - 9.81f) > 3.0f) {
+                        seguidas++
+                        if (seguidas >= 4) cogido()
+                    } else seguidas = 0
+                }
+            }
+            sm.registerListener(oyente, acc, android.hardware.SensorManager.SENSOR_DELAY_GAME)
+            sensores = sm
+        } catch (e: Exception) {}
+    }
+
+    private fun cogido() {
+        if (yaResuelto) return
+        yaResuelto = true
+        parar()
+        pararParpadeo("#0B7A3B")
+        if (!esPrueba) {
+            Historial.añadir(this, "Sin movimiento",
+                "sonó el aviso y cogió el móvil", motivo)
+        }
+        titulo.text = "Todo bien"
+        explicacion.text = "Ha cogido el móvil, así que está usted bien.\nNo he avisado a nadie."
+        reloj.text = ""
+        hablar("Ya le he oído. No aviso a nadie. Sigo vigilando.")
+        android.os.Handler(mainLooper).postDelayed({ finish() }, 2600)
     }
 
     /** Que salga con la pantalla apagada y el movil bloqueado en el bolsillo. */
@@ -105,7 +246,7 @@ class AlarmaActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     }
 
     private fun construirPantalla() {
-        val raiz = LinearLayout(this).apply {
+        raiz = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(Color.parseColor("#B3261E"))
             setPadding(40, 60, 40, 60)
@@ -116,7 +257,11 @@ class AlarmaActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         }
 
         titulo = TextView(this).apply {
-            text = if (esPrueba) "ESTO ES UNA PRUEBA" else "¿Está usted bien?"
+            text = when {
+                esPrueba -> "ESTO ES UNA PRUEBA"
+                esInmovilidad -> "¿Está usted ahí?"
+                else -> "¿Está usted bien?"
+            }
             textSize = 40f
             setTextColor(Color.WHITE)
             gravity = Gravity.CENTER
@@ -124,10 +269,15 @@ class AlarmaActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         }
 
         explicacion = TextView(this).apply {
-            text = if (esPrueba)
-                "No se va a avisar a nadie.\nAsí es como se vería de verdad."
-            else
-                "Si no contesta, avisaré a ${Ajustes(this@AlarmaActivity).nombreContacto.ifBlank { "su contacto" }}."
+            val aQuien = Ajustes(this@AlarmaActivity).nombreContacto.ifBlank { "su contacto" }
+            text = when {
+                esPrueba -> "No se va a avisar a nadie.\nAsí es como se vería de verdad."
+                esInmovilidad ->
+                    "El móvil lleva horas sin moverse.\n\n" +
+                    "Cójalo, o toque el botón blanco.\n\n" +
+                    "Si no, avisaré a $aQuien."
+                else -> "Si no contesta, avisaré a $aQuien."
+            }
             textSize = 22f
             setTextColor(Color.WHITE)
             gravity = Gravity.CENTER
@@ -135,7 +285,7 @@ class AlarmaActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         }
 
         reloj = TextView(this).apply {
-            text = SEGUNDOS.toString()
+            text = segundos.toString()
             textSize = 72f
             setTextColor(Color.WHITE)
             gravity = Gravity.CENTER
@@ -144,7 +294,7 @@ class AlarmaActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
         // El boton grande: ocupa media pantalla a proposito. Alguien que
         // acaba de caerse no puede afinar la punteria con el dedo.
-        val estoyBien = Button(this).apply {
+        botonGrande = Button(this).apply {
             text = "ESTOY BIEN"
             textSize = 34f
             setTextColor(Color.parseColor("#0B7A3B"))
@@ -170,7 +320,7 @@ class AlarmaActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         raiz.addView(titulo)
         raiz.addView(explicacion)
         raiz.addView(reloj)
-        raiz.addView(estoyBien)
+        raiz.addView(botonGrande)
         raiz.addView(avisarYa)
         setContentView(raiz)
     }
@@ -188,13 +338,20 @@ class AlarmaActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     }
 
     private fun empezarCuenta() {
-        cuenta = object : CountDownTimer(SEGUNDOS * 1000L, 1000L) {
+        cuenta = object : CountDownTimer(segundos * 1000L, 1000L) {
             override fun onTick(quedan: Long) {
                 val s = (quedan / 1000).toInt()
                 reloj.text = s.toString()
                 // Se repite la pregunta en voz alta cada 15 segundos: si la
-                // persona esta aturdida, una sola vez no basta.
-                if (s % 15 == 0 && s > 0) hablar("¿Está usted bien? Toque el botón blanco.")
+                // persona esta aturdida, una sola vez no basta. Y si el
+                // movil esta perdido por la casa, la voz repetida es lo que
+                // permite ir siguiendo el sonido hasta encontrarlo.
+                if (s % 15 == 0 && s > 0) {
+                    hablar(
+                        if (esInmovilidad) "¿Está usted ahí? Coja el móvil, por favor."
+                        else "¿Está usted bien? Toque el botón blanco."
+                    )
+                }
             }
             override fun onFinish() { avisar() }
         }.start()
@@ -204,6 +361,23 @@ class AlarmaActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         if (yaResuelto) return
         yaResuelto = true
         parar()
+        pararParpadeo("#0B7A3B")
+
+        // TREGUA DESPUES DE DECIR "ESTOY BIEN".
+        //
+        // Esto arregla un fallo que en la practica era insoportable: se
+        // pulsaba "estoy bien", y a los pocos segundos volvia a saltar la
+        // alarma. Y tenia toda la logica: alguien que acaba de decir que
+        // esta bien se esta LEVANTANDO. Apoyarse, incorporarse, dejar el
+        // movil en la mesilla... todo eso son golpes seguidos de quietud,
+        // que es exactamente lo que el detector busca. La app perseguia a
+        // la persona justo mientras se recuperaba.
+        //
+        // Medio minuto de tregua lo resuelve sin dejar a nadie
+        // desprotegido: para que hiciera falta avisar en ese rato tendria
+        // que haber una segunda caida en menos de treinta segundos, y aun
+        // asi el aviso por falta de movimiento la acabaria cogiendo.
+        ServicioVigilancia.tregua = System.currentTimeMillis() + 30_000L
         // Se anota igualmente, aunque diga que esta bien: una caida de la
         // que uno se levanta sigue siendo una caida, y si se repiten es
         // justo lo que hay que contarle al medico. Las caidas repetidas
@@ -224,6 +398,7 @@ class AlarmaActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         parar()
 
         if (esPrueba) {
+            pararParpadeo("#334155")
             titulo.text = "Fin de la prueba"
             explicacion.text = "Aquí es donde habría salido el mensaje.\nNo se ha enviado nada."
             reloj.text = ""
@@ -257,7 +432,31 @@ class AlarmaActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             }, 3000)
         }
         reloj.text = ""
-        android.os.Handler(mainLooper).postDelayed({ finish() }, 12000)
+
+        // LA PANTALLA SIGUE PARPADEANDO, Y NO SE CIERRA.
+        //
+        // Antes esto se apagaba a los doce segundos, y era un error: el
+        // momento en que la baliza hace mas falta es justo DESPUES de
+        // avisar, mientras alguien viene de camino. Una persona en el
+        // suelo de un pasillo a oscuras no se ve desde la puerta; una
+        // pantalla parpadeando en azul y rojo se ve desde la calle si hay
+        // una ventana, y guia hasta ella.
+        //
+        // Se queda encendida hasta que alguien la apaga a mano. El gasto
+        // de bateria de una pantalla encendida no significa nada al lado
+        // de que quien llegue tarde diez minutos en encontrar a la persona.
+        //
+        // Eso si: la vigilancia se reanuda YA. Dejar la pantalla puesta no
+        // puede significar dejar de vigilar, porque entonces una segunda
+        // caida mientras se espera a la ambulancia pasaria desapercibida.
+        visible = false
+        titulo.textSize = 30f
+        botonGrande.text = "APAGAR ESTA LUZ"
+        botonGrande.textSize = 26f
+        botonGrande.setOnClickListener {
+            pararParpadeo("#101828")
+            finish()
+        }
     }
 
     private fun parar() {
@@ -294,8 +493,15 @@ class AlarmaActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
     override fun onDestroy() {
         visible = false
+        parparadeoFuera()
         parar()
         voz?.stop(); voz?.shutdown()
         super.onDestroy()
+    }
+
+    private fun parparadeoFuera() {
+        parpadeando = false
+        pintor.removeCallbacksAndMessages(null)
+        try { oyente?.let { sensores?.unregisterListener(it) } } catch (e: Exception) {}
     }
 }

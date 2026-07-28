@@ -211,6 +211,18 @@ class MainActivity : AppCompatActivity() {
             })
         })
 
+        // El aviso por falta de movimiento tarda HORAS en dispararse solo,
+        // asi que sin este boton nadie llegaria a verlo nunca. Y es el que
+        // mas conviene ver antes: enseña que suena, que se puede cancelar
+        // solo cogiendo el movil, y que la pantalla hace de baliza.
+        col.addView(botonPequeno("💤  Ver el aviso de \"lleva horas sin moverse\"", "#B45309") {
+            startActivity(Intent(this, AlarmaActivity::class.java).apply {
+                putExtra(AlarmaActivity.EXTRA_PRUEBA, true)
+                putExtra(AlarmaActivity.EXTRA_TIPO, AlarmaActivity.TIPO_INMOVILIDAD)
+                putExtra(AlarmaActivity.EXTRA_MOTIVO, "lleva horas sin moverse")
+            })
+        })
+
         col.addView(botonPequeno("✉️  Mandar un mensaje de prueba de verdad", "#7A1A15") {
             probarMensaje()
         })

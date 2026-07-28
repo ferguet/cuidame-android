@@ -103,12 +103,68 @@ object Avisador {
 
         val donde = ubicacion(contexto)
         if (donde != null) {
-            texto.append("Última ubicación: ")
+            // PRIMERO EN PALABRAS, DESPUES EL ENLACE.
+            //
+            // Quien recibe esto lo lee de un vistazo y con el susto en el
+            // cuerpo. "Está en casa" y "está FUERA de casa" llevan a hacer
+            // cosas distintas -subir a mirar, o salir a buscar- y se
+            // entienden sin abrir nada. El mapa sigue estando debajo para
+            // el sitio exacto.
+            when (enCasa(contexto, donde)) {
+                true -> texto.append("Está EN CASA. ")
+                false -> texto.append("Está FUERA de casa. ")
+                null -> {}
+            }
+            texto.append("Sitio: ")
             texto.append("https://maps.google.com/?q=${donde.latitude},${donde.longitude}")
         } else {
             texto.append("No se ha podido saber dónde está.")
         }
         return texto.toString()
+    }
+
+    /** El aviso de que el movil se queda sin bateria y dejara de vigilar. */
+    fun mensajeBateria(contexto: Context): String {
+        val quien = Ajustes(contexto).nombrePersona.ifBlank { "La persona" }
+        return "AVISO DE CUIDAME. Al móvil de $quien le queda muy poca batería. " +
+               "Cuando se apague dejará de vigilar las caídas. Conviene recordarle que lo cargue."
+    }
+
+    /**
+     * ¿Esta el movil en el sitio donde suele dormir?
+     *
+     * Devuelve null si todavia no se sabe donde es la casa. Se admiten 150
+     * metros de margen a proposito: una posicion cogida dentro de un piso,
+     * sin ver el cielo, se apoya en las antenas y en el wifi y se va
+     * facilmente cien metros. Apretar mas el margen solo conseguiria decir
+     * "esta fuera de casa" a alguien que esta en su cocina, que es
+     * exactamente el error que no nos podemos permitir.
+     */
+    private fun enCasa(contexto: Context, donde: Location): Boolean? {
+        val a = Ajustes(contexto)
+        if (!a.sabeDondeEsLaCasa()) return null
+        val salida = FloatArray(1)
+        return try {
+            Location.distanceBetween(
+                a.latitudCasa.toDouble(), a.longitudCasa.toDouble(),
+                donde.latitude, donde.longitude, salida
+            )
+            salida[0] < 150f
+        } catch (e: Exception) { null }
+    }
+
+    /**
+     * Guarda donde duerme el movil. Se llama de madrugada.
+     *
+     * No hay media ni historial: se guarda el ultimo sitio conocido de
+     * noche y punto. Si la persona se muda, en una noche el dato ya es el
+     * nuevo, sin que nadie tenga que ir a cambiar nada en ningun ajuste.
+     */
+    fun aprenderCasa(contexto: Context) {
+        val donde = ubicacion(contexto) ?: return
+        val a = Ajustes(contexto)
+        a.latitudCasa = donde.latitude.toFloat()
+        a.longitudCasa = donde.longitude.toFloat()
     }
 
     /**
