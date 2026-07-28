@@ -94,7 +94,7 @@ class MainActivity : AppCompatActivity() {
         cTelefono = campo("Teléfono móvil", InputType.TYPE_CLASS_PHONE)
         col.addView(cTelefono)
 
-        col.addView(boton("Guardar", Color.parseColor("#1D4ED8")) { guardar() })
+        col.addView(boton("GUARDAR", Color.parseColor("#1D4ED8")) { guardar() })
 
         col.addView(hueco(40))
         col.addView(texto("SALUD", 14f, Color.parseColor("#9AA4B2")))
@@ -198,29 +198,44 @@ class MainActivity : AppCompatActivity() {
         // Se comprueba que el servicio este VIVO, no solo que el ajuste
         // diga que si. Si Android lo mato o no llego a arrancar, decir
         // "vigilando" seria mentir justo en lo que mas importa.
+        // NOMBRAR EL BOTON, NO SEÑALARLO.
+        //
+        // Antes ponia "pulse abajo para volver a activarlo". Para quien ha
+        // hecho la pantalla es evidente cual es "abajo"; para quien la ve
+        // por primera vez hay tres botones seguidos y uno pone GUARDAR.
+        // Decir "abajo" obliga a interpretar, y ahi es donde se falla.
+        // Ahora cada mensaje dice LAS PALABRAS EXACTAS que hay escritas en
+        // el boton que se debe tocar, para que no haya nada que deducir.
         if (activa && !ServicioVigilancia.activo) {
-            estado.text = "⚠️ Debería estar vigilando, pero no lo está\n\n" +
-                          "Pulse abajo para volver a activarlo."
+            estado.text = "⚠️ NO está vigilando\n\n" +
+                          "Debería estarlo, pero se ha parado.\n\n" +
+                          "Toque el botón verde que pone:\nVOLVER A ACTIVAR"
             estado.setBackgroundColor(Color.parseColor("#B45309"))
-            interruptor.text = "Volver a activar"
+            interruptor.text = "VOLVER A ACTIVAR"
             interruptor.setBackgroundColor(Color.parseColor("#0B7A3B"))
             return
         }
 
         if (activa) {
-            estado.text = "✅ Vigilando\n\nPuede guardar el móvil y olvidarse."
+            estado.text = "✅ Vigilando\n\nYa está todo listo.\n" +
+                          "Puede guardarse el móvil en el bolsillo y olvidarse."
             estado.setBackgroundColor(Color.parseColor("#0B7A3B"))
-            interruptor.text = "Dejar de vigilar"
+            interruptor.text = "DEJAR DE VIGILAR"
             interruptor.setBackgroundColor(Color.parseColor("#7A1A15"))
         } else if (!ajustes.estaConfigurada()) {
-            estado.text = "Faltan datos\n\nRellene el nombre y el teléfono de abajo."
+            estado.text = "Faltan datos\n\n" +
+                          "1. Escriba su nombre\n" +
+                          "2. Escriba el nombre y el teléfono de quien quiere que le avise\n" +
+                          "3. Toque el botón azul GUARDAR\n\n" +
+                          "Después podrá empezar a vigilar."
             estado.setBackgroundColor(Color.parseColor("#B45309"))
-            interruptor.text = "Empezar a vigilar"
+            interruptor.text = "EMPEZAR A VIGILAR"
             interruptor.setBackgroundColor(Color.parseColor("#334155"))
         } else {
-            estado.text = "No está vigilando"
+            estado.text = "No está vigilando\n\n" +
+                          "Toque el botón verde que pone:\nEMPEZAR A VIGILAR"
             estado.setBackgroundColor(Color.parseColor("#334155"))
-            interruptor.text = "Empezar a vigilar"
+            interruptor.text = "EMPEZAR A VIGILAR"
             interruptor.setBackgroundColor(Color.parseColor("#0B7A3B"))
         }
     }
@@ -236,7 +251,11 @@ class MainActivity : AppCompatActivity() {
     private fun alternar() {
         guardar()
         if (!ajustes.estaConfigurada()) {
-            Toast.makeText(this, "Rellene el nombre y el teléfono primero", Toast.LENGTH_LONG).show()
+            Toast.makeText(
+                this,
+                "Antes escriba su nombre y el teléfono de contacto, y toque GUARDAR",
+                Toast.LENGTH_LONG
+            ).show()
             return
         }
         if (ajustes.vigilanciaActiva) {

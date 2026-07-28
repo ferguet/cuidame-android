@@ -33,6 +33,28 @@ object Sirena {
     private var vibrador: Vibrator? = null
     private var sonando = false
 
+    /**
+     * DEJA EL TONO CARGADO DE ANTEMANO.
+     *
+     * Buscar el tono de alarma del sistema y prepararlo tarda su rato, y
+     * hacerlo en el momento del susto añade retraso justo donde peor
+     * viene. Se llama al arrancar la vigilancia, cuando sobra tiempo, y
+     * asi al sonar solo queda darle al play.
+     */
+    fun preparar(c: Context) {
+        if (tono != null) return
+        try {
+            val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+                ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+            tono = RingtoneManager.getRingtone(c.applicationContext, uri)?.apply {
+                audioAttributes = AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_ALARM)
+                    .build()
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) isLooping = true
+            }
+        } catch (e: Exception) {}
+    }
+
     fun sonar(c: Context) {
         if (sonando) return
         sonando = true
@@ -46,15 +68,8 @@ object Sirena {
                 am.getStreamMaxVolume(AudioManager.STREAM_ALARM), 0
             )
 
-            val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
-                ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-            tono = RingtoneManager.getRingtone(c.applicationContext, uri)?.apply {
-                audioAttributes = AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_ALARM)
-                    .build()
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) isLooping = true
-                play()
-            }
+            if (tono == null) preparar(c)
+            tono?.play()
         } catch (e: Exception) {}
 
         try {
@@ -86,6 +101,7 @@ object Sirena {
         sonando = false
         try { tono?.stop() } catch (e: Exception) {}
         try { vibrador?.cancel() } catch (e: Exception) {}
-        tono = null
+        // El tono NO se suelta: se deja cargado para la proxima, que
+        // puede ser dentro de un minuto y tiene que sonar al instante.
     }
 }

@@ -126,6 +126,9 @@ class ServicioVigilancia : Service(), SensorEventListener {
             sensores.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME, 0)
         }
         detector.marcarMovimiento()
+        // Se deja el tono de alarma cargado ahora, con tiempo de sobra,
+        // para que en el momento del susto suene sin un segundo de espera.
+        Sirena.preparar(this)
         activo = true
     }
 
