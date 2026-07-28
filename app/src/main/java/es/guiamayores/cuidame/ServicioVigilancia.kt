@@ -50,6 +50,7 @@ class ServicioVigilancia : Service(), SensorEventListener {
 
     private var rearmarDesde = 0L
     private var ultimaComprobacionQuietud = 0L
+    private var coche: ModoCoche? = null
 
     companion object {
         const val CANAL = "cuidame_vigilancia"
@@ -162,6 +163,7 @@ class ServicioVigilancia : Service(), SensorEventListener {
         // Se deja el tono de alarma cargado ahora, con tiempo de sobra,
         // para que en el momento del susto suene sin un segundo de espera.
         Sirena.preparar(this)
+        coche = ModoCoche(this)
         activo = true
     }
 
@@ -178,6 +180,7 @@ class ServicioVigilancia : Service(), SensorEventListener {
 
     override fun onDestroy() {
         activo = false
+        try { coche?.parar() } catch (e: Exception) {}
         try { sensores.unregisterListener(this) } catch (e: Exception) {}
         try { if (wakeLock?.isHeld == true) wakeLock?.release() } catch (e: Exception) {}
         super.onDestroy()
@@ -231,19 +234,50 @@ class ServicioVigilancia : Service(), SensorEventListener {
         // "esta encima de la persona" siempre, incluso con el movil solo.
         ultimaVida = if (hayCaida) detector.quietudUltimoIntento else detector.vidaAhora()
 
+        // LAS COMPROBACIONES DE CADA MINUTO VAN ANTES QUE NADA.
+        //
+        // Estaban al final y era un fallo tonto pero grave: en cuanto se
+        // entraba en modo coche la funcion se salia antes de llegar aqui,
+        // asi que el modo coche no se apagaba nunca y el GPS se quedaba
+        // encendido para siempre. Lo que mantiene vivo un estado no puede
+        // depender de ese mismo estado.
+        if (ahora - ultimaComprobacionQuietud > 60_000L) {
+            ultimaComprobacionQuietud = ahora
+            coche?.latido(detector.vidaAhora() > 0.12f)
+            comprobarBateria()
+            aprenderDondeDuerme()
+            // Yendo en coche no se mira la inmovilidad: quien conduce
+            // esta sentado y quieto, y eso es lo normal, no una señal.
+            if (coche?.estado != ModoCoche.Estado.CONDUCIENDO) {
+                comprobarInmovilidad(ahora)
+            } else {
+                detector.marcarMovimiento(ahora)
+            }
+        }
+
+        // EN COCHE NO SE DETECTAN CAIDAS, Y ES A PROPOSITO.
+        //
+        // Un motor en marcha vibra de una forma sospechosamente parecida a
+        // como respira una persona: pequeño, continuo y regular. Con la
+        // "señal de vida" que usamos para no confundir un mueble con un
+        // cuerpo, un bache podia dar golpe + "quieto pero vivo" y disparar
+        // un aviso falso con la persona conduciendo tan tranquila.
+        //
+        // Se sustituye por lo unico que ahi tiene sentido: un choque, que
+        // pide las tres señales a la vez (iba deprisa, se paro en seco y
+        // hubo impacto). Nadie se cae al suelo dentro de un coche.
+        if (coche?.estado == ModoCoche.Estado.CONDUCIENDO) {
+            if (coche?.pareceChoque(detector.picoUltimoGolpe) == true) {
+                dispararAlarma("puede haber tenido un accidente conduciendo")
+            }
+            return
+        }
+
         if (hayCaida) {
             dispararAlarma("parece que se ha caído")
             return
         }
 
-        // La inmovilidad se mira una vez por minuto: no hace falta mas y
-        // asi no se gasta bateria en cuentas continuas.
-        if (ahora - ultimaComprobacionQuietud > 60_000L) {
-            ultimaComprobacionQuietud = ahora
-            comprobarInmovilidad(ahora)
-            comprobarBateria()
-            aprenderDondeDuerme()
-        }
     }
 
     private fun comprobarInmovilidad(ahora: Long) {

@@ -21,6 +21,11 @@
          mirando. Nada de vigilancia escondida. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_HEALTH" />
+    <!-- Para el modo coche: leer la velocidad del GPS mientras el servicio
+         vigila. Con el servicio en primer plano y este tipo declarado, no
+         hace falta el permiso de "ubicacion en segundo plano", que es el
+         que Android pone mas dificil y con razon. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <uses-permission android:name="android.permission.HIGH_SAMPLING_RATE_SENSORS" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
@@ -118,7 +123,7 @@
         <service
             android:name=".ServicioVigilancia"
             android:exported="false"
-            android:foregroundServiceType="health" />
+            android:foregroundServiceType="health|location" />
 
         <receiver
             android:name=".ArranqueReceiver"
