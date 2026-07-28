@@ -48,6 +48,7 @@ class DiagnosticoActivity : AppCompatActivity(), SensorEventListener {
     private lateinit var umbral: TextView
     private lateinit var vida: TextView
     private lateinit var vidaPista: TextView
+    private lateinit var coche: TextView
 
     private var ultimoRefresco = 0L
 
@@ -137,6 +138,18 @@ class DiagnosticoActivity : AppCompatActivity(), SensorEventListener {
         col.addView(t(
             "Solo el acelerómetro es imprescindible. Los demás no hacen falta hoy, " +
             "pero saber si están dice qué se le puede pedir a este móvil más adelante.",
+            14f, Color.parseColor("#6C7689")
+        ))
+
+        // El modo coche se enciende solo, asi que sin verlo aqui no habria
+        // forma de comprobar que funciona: habria que fiarse de mi palabra.
+        col.addView(hueco(24))
+        col.addView(t("MODO COCHE", 13f, Color.parseColor("#9AA4B2")))
+        coche = t("", 18f, Color.WHITE)
+        col.addView(coche)
+        col.addView(t(
+            "Se enciende solo al detectar velocidad de coche y enciende el GPS. " +
+            "Dé una vuelta y vuelva aquí: debería poner \"conduciendo\" y una velocidad.",
             14f, Color.parseColor("#6C7689")
         ))
 
@@ -235,6 +248,19 @@ class DiagnosticoActivity : AppCompatActivity(), SensorEventListener {
             vidaPista.text = "Demasiado quieto para ser una persona: esto es un mueble. " +
                              "Un golpe aquí se descarta y NO avisa."
         }
+
+        coche.text = if (ServicioVigilancia.enCoche) {
+            "🚗 conduciendo · " + ServicioVigilancia.velocidadCoche.toInt() + " km/h\n" +
+            "Frenazos fuertes hoy: " + ServicioVigilancia.frenazosHoy
+        } else if (ServicioVigilancia.activo) {
+            "en reposo (no detecta coche)\nFrenazos fuertes hoy: " +
+                ServicioVigilancia.frenazosHoy
+        } else {
+            "la vigilancia está apagada, así que el modo coche tampoco funciona"
+        }
+        coche.setTextColor(
+            if (ServicioVigilancia.enCoche) Color.parseColor("#38BDF8") else Color.parseColor("#9AA4B2")
+        )
 
         val q = detector.quietudUltimoIntento
         detalle.text = buildString {

@@ -299,9 +299,36 @@ class MainActivity : AppCompatActivity() {
         }
 
         if (activa) {
-            estado.text = "✅ Vigilando\n\nYa está todo listo.\n" +
-                          "Puede guardarse el móvil en el bolsillo y olvidarse."
-            estado.background = fondo(Color.parseColor("#0B7A3B"))
+            // "VIGILANDO" NO DICE VIGILANDO QUE.
+            //
+            // Habia tres cosas funcionando -caidas, horas sin moverse y
+            // modo coche- y la pantalla resumia las tres en una palabra.
+            // Quien configura esto para su padre tiene derecho a saber
+            // exactamente que esta encendido, sobre todo cuando una de las
+            // tres usa el GPS por su cuenta. Y si no se ve, tampoco se
+            // puede comprobar que funcione.
+            estado.text = buildString {
+                if (ServicioVigilancia.enCoche) {
+                    append("🚗 En coche\n\n")
+                    append(ServicioVigilancia.velocidadCoche.toInt())
+                    append(" km/h · usando el GPS\n")
+                    append("Frenazos fuertes hoy: ")
+                    append(ServicioVigilancia.frenazosHoy)
+                    append("\n\nLas caídas no se miran conduciendo:\n")
+                    append("dentro de un coche no se cae uno al suelo.")
+                } else {
+                    append("✅ Vigilando\n\n")
+                    append("• Caídas\n")
+                    append("• Si pasa ")
+                    append(ajustes.horasSinMoverse)
+                    append(" horas sin moverse\n")
+                    append("• Frenazos, si se pone a conducir\n\n")
+                    append("Puede guardarse el móvil en el bolsillo y olvidarse.")
+                }
+            }
+            estado.background = fondo(
+                Color.parseColor(if (ServicioVigilancia.enCoche) "#1E5F8E" else "#0B7A3B")
+            )
             interruptor.text = "🔕  DEJAR DE VIGILAR"
             pintar(interruptor, Color.parseColor("#7A1A15"))
         } else if (!ajustes.estaConfigurada()) {

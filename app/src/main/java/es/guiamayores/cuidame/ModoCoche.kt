@@ -54,9 +54,26 @@ class ModoCoche(private val contexto: Context) : LocationListener {
 
     enum class Estado { PARADO, COMPROBANDO, CONDUCIENDO }
 
-    var estado = Estado.PARADO; private set
-    var velocidadKmh = 0f; private set
-    var frenazosHoy = 0; private set
+    /**
+     * El estado se publica ademas en ServicioVigilancia para que se pueda
+     * VER desde fuera.
+     *
+     * Esto no es un adorno. Este modo enciende el GPS por su cuenta, sin
+     * que nadie lo pida, y una app que hace eso callando no se merece que
+     * se fien de ella. Ademas, si no se ve, no se puede comprobar: nadie
+     * puede saber si funciona, ni yo puedo arreglarlo cuando falle.
+     */
+    var estado = Estado.PARADO
+        private set(v) { field = v; ServicioVigilancia.enCoche = (v == Estado.CONDUCIENDO) }
+
+    var velocidadKmh = 0f
+        private set(v) { field = v; ServicioVigilancia.velocidadCoche = v }
+
+    var frenazosHoy = 0
+        private set(v) { field = v; ServicioVigilancia.frenazosHoy = v }
+
+    /** El dia que se contaron, para poner el contador a cero al cambiar. */
+    private var diaDelConteo = -1
 
     /** Ultimo frenazo medido, en m/s2. Para la pantalla de sensores. */
     var ultimoFrenazo = 0f; private set
@@ -195,6 +212,14 @@ class ModoCoche(private val contexto: Context) : LocationListener {
     }
 
     private fun anotarFrenazo(antes: Float, despues: Float, deceleracion: Float) {
+        // El contador es "de hoy", asi que al cambiar de dia se pone a
+        // cero. Si no, el numero de la pantalla iria creciendo para
+        // siempre y dejaria de querer decir nada.
+        val hoy = java.util.Calendar.getInstance().get(java.util.Calendar.DAY_OF_YEAR)
+        if (hoy != diaDelConteo) {
+            diaDelConteo = hoy
+            frenazosHoy = 0
+        }
         frenazosHoy++
         Historial.añadir(
             contexto,

@@ -93,6 +93,17 @@ class ServicioVigilancia : Service(), SensorEventListener {
         @Volatile var ultimoEjeZ: Float? = null
         @Volatile var ultimaVida: Float? = null
 
+        // ---- MODO COCHE, A LA VISTA ----
+        //
+        // Este modo se enciende solo y ademas enciende el GPS. Una app que
+        // hace eso sin decirlo no se merece que se fien de ella, y encima
+        // seria imposible de comprobar: si no se ve, nadie puede saber si
+        // funciona. Se publica aqui para la pantalla de casa, el aviso de
+        // la barra y la pantalla de sensores.
+        @Volatile var enCoche = false
+        @Volatile var velocidadCoche = 0f
+        @Volatile var frenazosHoy = 0
+
         fun arrancar(contexto: Context) {
             val i = Intent(contexto, ServicioVigilancia::class.java)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -253,6 +264,7 @@ class ServicioVigilancia : Service(), SensorEventListener {
             } else {
                 detector.marcarMovimiento(ahora)
             }
+            refrescarAviso()
         }
 
         // EN COCHE NO SE DETECTAN CAIDAS, Y ES A PROPOSITO.
@@ -396,6 +408,28 @@ class ServicioVigilancia : Service(), SensorEventListener {
         // Y ademas se intenta abrir directamente: si la app estaba en
         // primer plano, asi sale al instante sin pasar por el aviso.
         try { startActivity(i) } catch (e: Exception) {}
+    }
+
+    /**
+     * El aviso permanente cuenta lo que esta pasando de verdad.
+     *
+     * Antes ponia siempre "Vigilando por usted", dijera lo que dijera la
+     * app por dentro. Ahora, si esta usando el GPS porque cree que se va
+     * en coche, lo dice. El sitio donde se declara lo que hace una app no
+     * puede ser la letra pequeña: tiene que ser el aviso que la persona ve
+     * en la barra todo el dia.
+     */
+    private fun refrescarAviso() {
+        val texto = if (enCoche) {
+            "En coche · usando el GPS" +
+                if (frenazosHoy > 0) " · $frenazosHoy frenazos hoy" else ""
+        } else {
+            "Vigilando: caídas y horas sin moverse"
+        }
+        try {
+            (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
+                .notify(ID_AVISO, construirAviso(texto))
+        } catch (e: Exception) {}
     }
 
     private fun crearCanal() {
