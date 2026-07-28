@@ -100,6 +100,9 @@ class ServicioVigilancia : Service(), SensorEventListener {
         // seria imposible de comprobar: si no se ve, nadie puede saber si
         // funciona. Se publica aqui para la pantalla de casa, el aviso de
         // la barra y la pantalla de sensores.
+        /** Para poder contestar "se está moviendo" o "lleva X minutos quieta". */
+        @Volatile var ultimoMovimientoConocido = System.currentTimeMillis()
+
         @Volatile var enCoche = false
         @Volatile var velocidadCoche = 0f
         @Volatile var frenazosHoy = 0
@@ -244,6 +247,7 @@ class ServicioVigilancia : Service(), SensorEventListener {
         // segundo y dispararia el numero, con lo que el mensaje diria
         // "esta encima de la persona" siempre, incluso con el movil solo.
         ultimaVida = if (hayCaida) detector.quietudUltimoIntento else detector.vidaAhora()
+        ultimoMovimientoConocido = detector.ultimoMovimiento
 
         // LAS COMPROBACIONES DE CADA MINUTO VAN ANTES QUE NADA.
         //

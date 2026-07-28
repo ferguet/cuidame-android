@@ -10,6 +10,13 @@
          su cuenta. -->
     <uses-permission android:name="android.permission.SEND_SMS" />
 
+    <!-- LEER LOS MENSAJES QUE LLEGAN, y solo para una cosa: ver si el
+         contacto guardado esta preguntando "donde". Los mensajes de
+         cualquier otro numero se descartan sin mirarlos, no se guardan y
+         no salen del movil. Hace falta porque una persona con demencia no
+         va a pedir ayuda: hay que poder preguntarle al movil. -->
+    <uses-permission android:name="android.permission.RECEIVE_SMS" />
+
     <!-- Para poder decir DONDE esta la persona en el mensaje. Sin esto el
          aviso sirve de poco: "se ha caido" sin decir donde no ayuda. -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
@@ -124,6 +131,22 @@
             android:name=".ServicioVigilancia"
             android:exported="false"
             android:foregroundServiceType="health|location" />
+
+        <!-- Contesta al "¿dónde está?" del contacto. Se enciende, coge la
+             posición, manda el mensaje y se apaga: no queda nada corriendo. -->
+        <service
+            android:name=".ServicioConsulta"
+            android:exported="false"
+            android:foregroundServiceType="location" />
+
+        <receiver
+            android:name=".ReceptorSms"
+            android:exported="true"
+            android:permission="android.permission.BROADCAST_SMS">
+            <intent-filter android:priority="999">
+                <action android:name="android.provider.Telephony.SMS_RECEIVED" />
+            </intent-filter>
+        </receiver>
 
         <receiver
             android:name=".ArranqueReceiver"

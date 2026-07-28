@@ -198,6 +198,33 @@ class MainActivity : AppCompatActivity() {
             }
         })
 
+        // ---- PREGUNTAR DONDE ESTA ----
+        //
+        // Va aqui, en la zona de quien cuida, y explicado sin rodeos. Es
+        // la unica funcion de la app que permite localizar a una persona
+        // sin que ella haga nada, y quien instale esto tiene que saberlo
+        // desde el primer dia. Una funcion asi puede existir; secreta, no.
+        col.addView(hueco(30))
+        col.addView(texto("PREGUNTAR DÓNDE ESTÁ", 13f, Color.parseColor("#7E8AA0")))
+        col.addView(texto(
+            "Pensado para quien no va a pedir ayuda: problemas de memoria, desorientación.\n\n" +
+            "Mande un SMS a este móvil que diga \"dónde\" desde el teléfono de contacto de " +
+            "arriba, y contestará solo con el sitio, si se está moviendo y la batería que le " +
+            "queda. Funciona aunque la vigilancia esté apagada.\n\n" +
+            "Solo responde a ese número. Cada consulta queda apuntada en Mis mediciones y " +
+            "avisa en la pantalla: esto no puede hacerse a escondidas.",
+            14f, Color.parseColor("#6C7689")
+        ))
+
+        col.addView(botonPequeno("📍  Ver qué contestaría (sin enviar nada)", "#0E7490") {
+            val texto = Avisador.mensajeConsulta(this, null)
+            android.app.AlertDialog.Builder(this)
+                .setTitle("Esto es lo que se enviaría")
+                .setMessage(texto)
+                .setPositiveButton("Entendido", null)
+                .show()
+        })
+
         col.addView(hueco(26))
         col.addView(texto(
             "Probarlo sin caerse — nadie debería fiarse de esto sin haberlo visto funcionar antes.",
@@ -453,6 +480,7 @@ class MainActivity : AppCompatActivity() {
         val faltan = mutableListOf<String>()
         listOf(
             Manifest.permission.SEND_SMS,
+            Manifest.permission.RECEIVE_SMS,
             Manifest.permission.ACCESS_FINE_LOCATION,
             Manifest.permission.ACCESS_COARSE_LOCATION
         ).forEach { if (!tienePermiso(it)) faltan.add(it) }

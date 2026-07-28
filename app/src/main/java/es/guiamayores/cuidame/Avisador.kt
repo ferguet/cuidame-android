@@ -130,6 +130,74 @@ object Avisador {
         return texto.toString()
     }
 
+    /**
+     * LA RESPUESTA A "¿DONDE ESTA?"
+     *
+     * Pensada para leerse de un tiron por alguien que esta preocupado y
+     * andando por la calle. Primero si se esta moviendo -que es lo que
+     * dice si esta bien y en marcha o parada en un sitio-, luego donde, y
+     * al final la bateria, que decide cuanto tiempo se va a poder seguir
+     * preguntando.
+     *
+     * @param nueva la posicion recien cogida, o null si no dio tiempo.
+     */
+    fun mensajeConsulta(contexto: Context, nueva: Location?): String {
+        val a = Ajustes(contexto)
+        val quien = a.nombrePersona.ifBlank { "La persona" }
+        val hora = SimpleDateFormat("HH:mm", Locale("es", "ES")).format(Date())
+
+        val t = StringBuilder()
+        t.append("CUIDAME. $quien, a las $hora. ")
+
+        // ---- ¿Se esta moviendo? ----
+        //
+        // Es lo primero porque es lo que mas tranquiliza o mas alarma. Un
+        // punto en un mapa no distingue entre "va andando por la calle" y
+        // "lleva dos horas sin moverse en ese sitio", y esas dos cosas son
+        // completamente distintas para quien lee esto.
+        val velocidad = if (ServicioVigilancia.enCoche) ServicioVigilancia.velocidadCoche else 0f
+        val quieta = System.currentTimeMillis() - ServicioVigilancia.ultimoMovimientoConocido
+        t.append(
+            when {
+                velocidad > 8f -> "Va en un vehículo, a ${velocidad.toInt()} km/h. "
+                !ServicioVigilancia.activo -> "(La vigilancia está apagada, no sé si se mueve.) "
+                quieta < 3 * 60_000L -> "Se está moviendo ahora mismo. "
+                else -> "Lleva ${quieta / 60_000L} minutos sin moverse. "
+            }
+        )
+
+        // ---- ¿Donde? ----
+        val donde = nueva ?: ubicacion(contexto)
+        if (donde != null) {
+            when (enCasa(contexto, donde)) {
+                true -> t.append("Está EN CASA. ")
+                false -> t.append("Está FUERA de casa. ")
+                null -> {}
+            }
+            // LA EDAD DE LA POSICION NO ES UN DETALLE.
+            //
+            // Una posicion de hace tres horas mandada sin fecha manda a
+            // quien la lee al sitio donde la persona estaba, no donde
+            // esta. Es peor que no mandar nada, porque ademas da
+            // confianza.
+            val minutos = (System.currentTimeMillis() - donde.time) / 60_000L
+            if (nueva != null && minutos < 3) t.append("Sitio AHORA MISMO: ")
+            else t.append("Última posición, de hace $minutos min: ")
+            t.append("https://maps.google.com/?q=${donde.latitude},${donde.longitude} ")
+        } else {
+            t.append("No he podido saber dónde está. ")
+        }
+
+        bateria(contexto)?.let { t.append("Batería del móvil: $it%.") }
+        return t.toString()
+    }
+
+    private fun bateria(contexto: Context): Int? = try {
+        val bm = contexto.getSystemService(Context.BATTERY_SERVICE) as android.os.BatteryManager
+        bm.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CAPACITY)
+            .takeIf { it in 1..100 }
+    } catch (e: Exception) { null }
+
     /** El aviso de que el movil se queda sin bateria y dejara de vigilar. */
     fun mensajeBateria(contexto: Context): String {
         val quien = Ajustes(contexto).nombrePersona.ifBlank { "La persona" }
