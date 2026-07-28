@@ -48,6 +48,19 @@ class Ajustes(contexto: Context) {
         get() = p.getInt("horaFin", 22)
         set(v) = p.edit().putInt("horaFin", v).apply()
 
+    /**
+     * LO UNICO IMPRESCINDIBLE ES EL TELEFONO.
+     *
+     * Antes tambien se exigia el nombre de la persona, y eso bloqueaba la
+     * app entera de la forma mas silenciosa posible: quien rellenaba solo
+     * el telefono pulsaba EMPEZAR A VIGILAR y no pasaba nada visible.
+     * Parecia un boton roto.
+     *
+     * Y el nombre no hacia ninguna falta: solo se usa para redactar el
+     * mensaje ("Antonia se ha caido"). Sin el, el aviso dice "La persona
+     * se ha caido", que avisa exactamente igual de bien. Nunca se debe
+     * impedir que algo funcione por un dato que solo mejora la redaccion.
+     */
     fun estaConfigurada(): Boolean =
-        telefonoContacto.trim().length >= 9 && nombrePersona.isNotBlank()
+        telefonoContacto.trim().length >= 9
 }

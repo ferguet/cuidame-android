@@ -43,6 +43,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var cNombre: EditText
     private lateinit var cTelefono: EditText
     private lateinit var permisos: TextView
+    private lateinit var arrancarAqui: Button
 
     private val PERMISOS = 100
 
@@ -94,7 +95,33 @@ class MainActivity : AppCompatActivity() {
         cTelefono = campo("Teléfono móvil", InputType.TYPE_CLASS_PHONE)
         col.addView(cTelefono)
 
-        col.addView(boton("GUARDAR", Color.parseColor("#1D4ED8")) { guardar() })
+        // ANTES AQUI HABIA UN BOTON QUE PONIA "GUARDAR", Y ERA UN ERROR.
+        //
+        // "Guardar" no le dice a nadie que va a pasar despues. La persona
+        // rellenaba los datos, veia "guardar", lo pulsaba... y se quedaba
+        // igual, sin saber si ya estaba protegida o le faltaba algo. Y si
+        // en vez de eso pulsaba arriba, tampoco pasaba nada visible.
+        //
+        // Ahora el boton dice lo que HACE y hace las dos cosas de una vez:
+        // guarda y arranca la vigilancia. Va justo debajo de los datos,
+        // que es donde uno acaba de escribir y mira a continuacion.
+        arrancarAqui = boton("GUARDAR Y EMPEZAR A VIGILAR", Color.parseColor("#0B7A3B")) {
+            guardarYArrancar()
+        }
+        col.addView(arrancarAqui)
+
+        // Los datos se guardan solos segun se escriben. Asi, aunque alguien
+        // salga de la pantalla sin pulsar nada, no pierde lo escrito ni
+        // tiene que acordarse de confirmar.
+        listOf(cPersona, cNombre, cTelefono).forEach { campo ->
+            campo.addTextChangedListener(object : android.text.TextWatcher {
+                override fun afterTextChanged(s: android.text.Editable?) {
+                    guardarSilencioso()
+                }
+                override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+                override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+            })
+        }
 
         col.addView(hueco(40))
         col.addView(texto("SALUD", 14f, Color.parseColor("#9AA4B2")))
@@ -184,6 +211,19 @@ class MainActivity : AppCompatActivity() {
     private fun refrescar() {
         val activa = ajustes.vigilanciaActiva && ajustes.estaConfigurada()
 
+        // El boton de debajo de los datos tambien tiene que decir la
+        // verdad: si ya esta vigilando, ofrecer "empezar a vigilar" seria
+        // hacer dudar de si esta activo o no.
+        if (::arrancarAqui.isInitialized) {
+            if (activa && ServicioVigilancia.activo) {
+                arrancarAqui.text = "GUARDAR LOS DATOS"
+                arrancarAqui.setBackgroundColor(Color.parseColor("#1D4ED8"))
+            } else {
+                arrancarAqui.text = "GUARDAR Y EMPEZAR A VIGILAR"
+                arrancarAqui.setBackgroundColor(Color.parseColor("#0B7A3B"))
+            }
+        }
+
         val sms = tienePermiso(Manifest.permission.SEND_SMS)
         val ubi = tienePermiso(Manifest.permission.ACCESS_FINE_LOCATION) ||
                   tienePermiso(Manifest.permission.ACCESS_COARSE_LOCATION)
@@ -223,11 +263,10 @@ class MainActivity : AppCompatActivity() {
             interruptor.text = "DEJAR DE VIGILAR"
             interruptor.setBackgroundColor(Color.parseColor("#7A1A15"))
         } else if (!ajustes.estaConfigurada()) {
-            estado.text = "Faltan datos\n\n" +
-                          "1. Escriba su nombre\n" +
-                          "2. Escriba el nombre y el teléfono de quien quiere que le avise\n" +
-                          "3. Toque el botón azul GUARDAR\n\n" +
-                          "Después podrá empezar a vigilar."
+            estado.text = "Falta el teléfono\n\n" +
+                          "Escriba abajo el teléfono móvil de la persona que quiere " +
+                          "que le avise.\n\n" +
+                          "Luego toque el botón verde:\nGUARDAR Y EMPEZAR A VIGILAR"
             estado.setBackgroundColor(Color.parseColor("#B45309"))
             interruptor.text = "EMPEZAR A VIGILAR"
             interruptor.setBackgroundColor(Color.parseColor("#334155"))
@@ -240,12 +279,43 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun guardar() {
+    /** Guarda sin decir nada. Se llama a cada tecla. */
+    private fun guardarSilencioso() {
         ajustes.nombrePersona = cPersona.text.toString().trim()
         ajustes.nombreContacto = cNombre.text.toString().trim()
         ajustes.telefonoContacto = cTelefono.text.toString().trim()
-        Toast.makeText(this, "Guardado", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun guardar() {
+        guardarSilencioso()
         refrescar()
+    }
+
+    /**
+     * El boton de debajo de los datos: guarda y arranca de una vez.
+     *
+     * Si falta el telefono no se limita a callarse: dice exactamente que
+     * falta y deja el cursor puesto en la casilla, para que no haya que
+     * buscarla ni adivinar cual era.
+     */
+    private fun guardarYArrancar() {
+        guardarSilencioso()
+        if (!ajustes.estaConfigurada()) {
+            Toast.makeText(
+                this,
+                "Falta el teléfono de la persona que le va a avisar",
+                Toast.LENGTH_LONG
+            ).show()
+            cTelefono.requestFocus()
+            refrescar()
+            return
+        }
+        if (!ajustes.vigilanciaActiva) {
+            alternar()
+        } else {
+            Toast.makeText(this, "Datos guardados. Ya está vigilando.", Toast.LENGTH_SHORT).show()
+            refrescar()
+        }
     }
 
     private fun alternar() {
