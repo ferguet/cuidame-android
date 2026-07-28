@@ -80,6 +80,18 @@ class ServicioVigilancia : Service(), SensorEventListener {
         @Volatile
         var tregua = 0L
 
+        // ---- LO QUE HACE FALTA PARA CONTAR EN QUE SITUACION HA QUEDADO ----
+        //
+        // Se guardan aqui, siempre al dia, para que el mensaje de aviso se
+        // pueda escribir al instante. Pedir los sensores en el momento del
+        // susto costaria un segundo o dos de espera, y ese rato no se puede
+        // gastar. Son cuatro numeros sueltos: no se guarda ningun historial
+        // ni sale nada del movil salvo la frase del SMS.
+        @Volatile var ultimaLuz: Float? = null
+        @Volatile var ultimaProximidad: Float? = null
+        @Volatile var ultimoEjeZ: Float? = null
+        @Volatile var ultimaVida: Float? = null
+
         fun arrancar(contexto: Context) {
             val i = Intent(contexto, ServicioVigilancia::class.java)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -136,6 +148,16 @@ class ServicioVigilancia : Service(), SensorEventListener {
             // dia encendida.
             sensores.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME, 0)
         }
+
+        // La luz y la proximidad se leen despacio -no cambian deprisa y no
+        // merece la pena gastar bateria- pero se leen SIEMPRE, para que en
+        // el momento del aviso el dato ya este ahi. Muchos moviles baratos
+        // no los traen; si faltan, simplemente no se dice nada de eso.
+        listOf(Sensor.TYPE_LIGHT, Sensor.TYPE_PROXIMITY).forEach { tipo ->
+            sensores.getDefaultSensor(tipo)?.let {
+                sensores.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL)
+            }
+        }
         detector.marcarMovimiento()
         // Se deja el tono de alarma cargado ahora, con tiempo de sobra,
         // para que en el momento del susto suene sin un segundo de espera.
@@ -165,9 +187,17 @@ class ServicioVigilancia : Service(), SensorEventListener {
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
 
     override fun onSensorChanged(evento: SensorEvent?) {
-        if (evento == null || evento.sensor.type != Sensor.TYPE_ACCELEROMETER) return
+        if (evento == null) return
+
+        when (evento.sensor.type) {
+            Sensor.TYPE_LIGHT -> { ultimaLuz = evento.values[0]; return }
+            Sensor.TYPE_PROXIMITY -> { ultimaProximidad = evento.values[0]; return }
+            Sensor.TYPE_ACCELEROMETER -> {}
+            else -> return
+        }
 
         val ahora = System.currentTimeMillis()
+        ultimoEjeZ = evento.values[2]
 
         // Mientras la alarma esta en pantalla no se vigila: la persona ya
         // esta atendida. Y al cerrarse, se deja un respiro de 4 segundos
@@ -188,7 +218,20 @@ class ServicioVigilancia : Service(), SensorEventListener {
             return
         }
 
-        if (detector.procesar(evento.values[0], evento.values[1], evento.values[2], ahora)) {
+        val hayCaida =
+            detector.procesar(evento.values[0], evento.values[1], evento.values[2], ahora)
+
+        // La señal de vida se guarda ANTES de disparar nada, porque en
+        // cuanto salte la alarma el movil empieza a vibrar y ese temblor
+        // se colaria en la medida haciendo creer que hay alguien debajo.
+        //
+        // Y cuando hay caida se usa la medida del rato POSTERIOR al golpe,
+        // no la del ultimo segundo: el golpe forma parte de ese ultimo
+        // segundo y dispararia el numero, con lo que el mensaje diria
+        // "esta encima de la persona" siempre, incluso con el movil solo.
+        ultimaVida = if (hayCaida) detector.quietudUltimoIntento else detector.vidaAhora()
+
+        if (hayCaida) {
             dispararAlarma("parece que se ha caído")
             return
         }

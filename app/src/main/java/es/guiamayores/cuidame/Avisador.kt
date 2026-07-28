@@ -120,6 +120,13 @@ object Avisador {
         } else {
             texto.append("No se ha podido saber dónde está.")
         }
+
+        // Y por ultimo, en que situacion ha quedado el movil, contado con
+        // palabras. Va al final a proposito: lo urgente -quien, que, donde-
+        // tiene que caber en la primera pantalla del movil de quien lo
+        // recibe, sin tener que desplegar nada.
+        Situacion.describir()?.let { texto.append(" "); texto.append(it) }
+
         return texto.toString()
     }
 
