@@ -72,10 +72,13 @@ object Pulsera {
         if (estado(c) == Estado.LISTO) HealthConnectClient.getOrCreate(c) else null
     } catch (e: Exception) { null }
 
-    suspend fun tienePermisos(c: Context): Boolean = try {
-        val cl = cliente(c) ?: return false
-        cl.permissionController.getGrantedPermissions().containsAll(PERMISOS)
-    } catch (e: Exception) { false }
+    suspend fun tienePermisos(c: Context): Boolean {
+        return try {
+            val cl = cliente(c)
+            if (cl == null) false
+            else cl.permissionController.getGrantedPermissions().containsAll(PERMISOS)
+        } catch (e: Exception) { false }
+    }
 
     class Dia(
         val fecha: String,
