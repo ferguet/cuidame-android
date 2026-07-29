@@ -104,6 +104,16 @@ class Ajustes(contexto: Context) {
         get() = p.getInt("fuerzaGolpe", 26)
         set(v) = p.edit().putInt("fuerzaGolpe", v.coerceIn(18, 34)).apply()
 
+    /** Cuando se mando el ultimo aviso de "esto conviene mirarlo". */
+    var ultimoAvisoTendencia: Long
+        get() = p.getLong("ultimoAvisoTendencia", 0L)
+        set(v) = p.edit().putLong("ultimoAvisoTendencia", v).apply()
+
+    /** Se puede apagar: no todo el mundo quiere que le llegue esto. */
+    var avisarTendencias: Boolean
+        get() = p.getBoolean("avisarTendencias", true)
+        set(v) = p.edit().putBoolean("avisarTendencias", v).apply()
+
     /** Para no repetir el aviso de bateria una y otra vez. */
     var avisadaBateria: Boolean
         get() = p.getBoolean("avisadaBateria", false)

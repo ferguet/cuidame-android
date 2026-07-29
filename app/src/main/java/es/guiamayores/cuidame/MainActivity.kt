@@ -252,6 +252,29 @@ class MainActivity : AppCompatActivity() {
             14f, Color.parseColor("#6C7689")
         ))
 
+        // ---- AVISO CUANDO ALGO VA A PEOR ----
+        col.addView(hueco(30))
+        col.addView(texto("AVISO SI ALGO VA A PEOR", 13f, Color.parseColor("#7E8AA0")))
+        col.addView(texto(
+            "Una vez al día la app repasa las mediciones. Si se junta algo que merezca " +
+            "atención —el pulso desigual varias veces, respirar deprisa en reposo, el " +
+            "equilibrio peor que antes, dos caídas en un mes— manda un mensaje al contacto.\n\n" +
+            "Nunca por una medición suelta, nunca por un solo dato, y como mucho uno a la " +
+            "semana. Y no es una urgencia: lo dice el propio mensaje.",
+            14f, Color.parseColor("#6C7689")
+        ))
+
+        col.addView(botonPequeno("🔎  Ver si hoy mandaría aviso (sin enviarlo)", "#7C2D6E") {
+            val m = Vigia.revisar(this)
+            android.app.AlertDialog.Builder(this)
+                .setTitle(if (m == null) "Hoy no mandaría nada" else "Esto es lo que se enviaría")
+                .setMessage(m ?: "No hay ningún patrón que merezca avisar. Hacen falta varias " +
+                    "mediciones guardadas para que esto pueda decir algo: mídase el pulso y el " +
+                    "equilibrio unos cuantos días y vuelva a probar.")
+                .setPositiveButton("Entendido", null)
+                .show()
+        })
+
         col.addView(botonPequeno("📍  Ver qué contestaría (sin enviar nada)", "#0E7490") {
             val texto = Avisador.mensajeConsulta(this, null)
             android.app.AlertDialog.Builder(this)

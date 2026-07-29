@@ -74,6 +74,7 @@ class ServicioVigilancia : Service(), SensorEventListener {
                 coche?.latido(rapido)
                 comprobarBateria()
                 aprenderDondeDuerme()
+                revisarTendencias()
                 if (coche?.estado != ModoCoche.Estado.CONDUCIENDO) {
                     comprobarInmovilidad(ahora)
                 } else {
@@ -450,6 +451,38 @@ class ServicioVigilancia : Service(), SensorEventListener {
                     "quedaba un $nivel% · avisado el contacto", "")
             }
         } catch (e: Exception) {}
+    }
+
+    /**
+     * REVISAR SI ALGO VA A PEOR Y AVISAR AL CONTACTO.
+     *
+     * A una hora decente y como mucho una vez por semana. Las dos cosas
+     * importan:
+     *
+     * La hora, porque un mensaje diciendo "las mediciones de su madre han
+     * empeorado" a las tres de la mañana no adelanta absolutamente nada
+     * -no es una urgencia y no se puede hacer nada a esa hora- y en cambio
+     * deja a alguien despierto toda la noche. Se manda a media mañana, que
+     * es cuando se puede llamar por telefono y preguntar.
+     *
+     * Y la frecuencia, porque un aviso que llega a menudo deja de leerse.
+     */
+    private fun revisarTendencias() {
+        if (!ajustes.avisarTendencias) return
+        val hora = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
+        if (hora < 11 || hora > 19) return
+
+        val ahora = System.currentTimeMillis()
+        if (ahora - ajustes.ultimoAvisoTendencia < 7 * 24 * 60 * 60 * 1000L) return
+
+        val mensaje = Vigia.revisar(this) ?: return
+        ajustes.ultimoAvisoTendencia = ahora
+        val fallo = Avisador.enviar(this, mensaje)
+        Historial.añadir(
+            this, "Aviso al contacto",
+            if (fallo == null) "enviado resumen de lo que ha cambiado" else "no se pudo enviar",
+            ""
+        )
     }
 
     /**
