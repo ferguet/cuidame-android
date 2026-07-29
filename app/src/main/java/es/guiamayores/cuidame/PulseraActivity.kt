@@ -142,6 +142,25 @@ class PulseraActivity : AppCompatActivity() {
         raiz.addView(hueco(20))
         raiz.addView(texto("ÚLTIMOS DÍAS", 13f, Color.parseColor("#7E8AA0")))
 
+        // LA CABECERA VA ARRIBA, NO DEBAJO.
+        //
+        // Antes la leyenda estaba en una línea pequeña DESPUÉS de la
+        // tabla, y el resultado fue exactamente el que tenía que ser:
+        // alguien mirando un "1568" sin saber qué era. Una columna de
+        // números sin título no es información.
+        val cab = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(24, 8, 24, 8)
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = 12 }
+        }
+        cab.addView(celda("Día", 0.8f, Color.parseColor("#7E8AA0")))
+        cab.addView(celda("Pasos", 1.2f, Color.parseColor("#7E8AA0")))
+        cab.addView(celda("Pulso", 0.8f, Color.parseColor("#7E8AA0")))
+        cab.addView(celda("Sueño", 1f, Color.parseColor("#7E8AA0")))
+        raiz.addView(cab)
+
         for (d in dias) {
             val fila = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
@@ -163,10 +182,21 @@ class PulseraActivity : AppCompatActivity() {
             raiz.addView(fila)
         }
 
-        raiz.addView(texto(
-            "Día · pasos · pulso en reposo · dormido",
-            14f, Color.parseColor("#6C7689")
-        ))
+        // DE DONDE VIENE CADA COSA. Sin esto, un numero es una suposicion.
+        lifecycleScope.launch {
+            val origenes = try { Pulsera.deDondeVienen(this@PulseraActivity) } catch (e: Exception) { emptyList() }
+            if (origenes.isNotEmpty()) {
+                val aviso = origenes.any { it.contains("MÓVIL") || it.contains("propio móvil") }
+                raiz.addView(tarjeta(
+                    "Estos datos los escribe:\n" + origenes.joinToString("\n") { "• $it" } +
+                    (if (aviso)
+                        "\n\nOJO: si los pasos los cuenta el móvil y no el reloj, son los pasos " +
+                        "del bolsillo. Si el móvil se queda en la mesa, no cuentan nada."
+                     else ""),
+                    if (aviso) "#B45309" else "#334155"
+                ))
+            }
+        }
 
         raiz.addView(hueco(24))
         raiz.addView(texto(

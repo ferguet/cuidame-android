@@ -138,6 +138,52 @@ object Pulsera {
     }
 
     /**
+     * ¿QUIEN HA ESCRITO ESTOS DATOS?
+     *
+     * Esto nació de una confusión que provoqué yo: la pantalla enseñaba
+     * "1568" y la persona que lo miraba no sabía si eso venía del reloj o
+     * de dónde. Y la respuesta importaba muchísimo, porque resultó que los
+     * pasos los estaba contando el propio móvil y el reloj no había
+     * mandado absolutamente nada.
+     *
+     * Un número sin decir de dónde sale no es un dato, es una suposición.
+     * Y aquí la diferencia entre "lo mide el reloj en la muñeca" y "lo
+     * cuenta el móvil en el bolsillo" lo cambia todo: si el móvil se queda
+     * en la mesa, los pasos que salen no son los de la persona.
+     */
+    suspend fun deDondeVienen(c: Context): List<String> {
+        val cl = cliente(c) ?: return emptyList()
+        val filtro = TimeRangeFilter.between(
+            Instant.now().minus(7, ChronoUnit.DAYS), Instant.now()
+        )
+        val paquetes = mutableSetOf<String>()
+        try {
+            cl.readRecords(ReadRecordsRequest(StepsRecord::class, filtro))
+                .records.forEach { paquetes.add(it.metadata.dataOrigin.packageName) }
+        } catch (e: Exception) {}
+        try {
+            cl.readRecords(ReadRecordsRequest(HeartRateRecord::class, filtro))
+                .records.forEach { paquetes.add(it.metadata.dataOrigin.packageName) }
+        } catch (e: Exception) {}
+        try {
+            cl.readRecords(ReadRecordsRequest(SleepSessionRecord::class, filtro))
+                .records.forEach { paquetes.add(it.metadata.dataOrigin.packageName) }
+        } catch (e: Exception) {}
+        return paquetes.map { nombreBonito(it) }
+    }
+
+    private fun nombreBonito(paquete: String): String = when {
+        paquete.contains("huawei") -> "Huawei Salud (el reloj)"
+        paquete.contains("mi.health") || paquete.contains("xiaomi") -> "Mi Fitness (la pulsera)"
+        paquete.contains("samsung") -> "Samsung Health"
+        paquete.contains("fitbit") -> "Fitbit"
+        paquete.contains("apps.fitness") -> "Google Fit — esto lo cuenta el MÓVIL, no el reloj"
+        paquete.contains("healthdata") -> "el propio móvil"
+        paquete == "es.guiamayores.cuidame" -> "esta misma app"
+        else -> paquete
+    }
+
+    /**
      * ¿SE LA ESTA PONIENDO? Y ADEMAS, ¿SIGUE LLEGANDO EL DATO?
      *
      * Esta es la pregunta mas importante de todas y casi nadie la hace.
