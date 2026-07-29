@@ -48,14 +48,58 @@ object Vigia {
     private class Señal(val texto: String, val fuerte: Boolean)
 
     /**
-     * Se llama una vez al dia. Devuelve el mensaje a mandar, o null.
+     * LA PULSERA MANDA, Y LAS PRUEBAS DE LA APP ACOMPAÑAN.
+     *
+     * Este orden importa mas que cualquier umbral, y lo tenia del reves.
+     *
+     * Todo lo que mide la app con la pantalla -el dedo en la camara, el
+     * equilibrio, el temblor, la foto del ojo- exige que la persona sepa y
+     * pueda hacerlo. En la practica eso significa que solo se mide el dia
+     * que va el hijo o la cuidadora: una vez al mes, con suerte. Con esa
+     * frecuencia no se detecta nada a tiempo.
+     *
+     * La pulsera no exige ninguna habilidad. Solo hay que llevarla puesta.
+     * Mide todas las noches, sin que nadie se acuerde de nada, y da
+     * exactamente lo que hace falta para ver una tendencia: muchos dias
+     * seguidos del mismo dato.
+     *
+     * Asi que la vigilancia se apoya en la pulsera y las pruebas manuales
+     * pasan a ser refuerzo: cuando existen suman, y cuando no existen no
+     * se echa nada en falta.
      */
-    fun revisar(c: Context): String? {
-        val hist = Historial.leer(c)
-        if (hist.size < 4) return null
-
+    suspend fun revisar(c: Context): String? {
         val señales = mutableListOf<Señal>()
 
+        // ---- 1. LO PRIMERO: ¿SIGUE LLEGANDO ALGO? ----
+        //
+        // Va antes que ningun dato de salud porque si esto falla, todo lo
+        // demas es silencio y el silencio se confunde con "va todo bien".
+        val horas = Pulsera.horasDesdeElUltimoDato(c)
+        if (horas != null && horas > 36) {
+            señales.add(Señal(
+                "Hace ${horas.toInt()} horas que la pulsera no manda nada. O se la ha quitado, " +
+                "o se quedó sin batería, o la app de la pulsera ha dejado de sincronizar. " +
+                "Mientras tanto no se está vigilando nada de la pulsera.", true
+            ))
+        }
+
+        // ---- 2. LA PULSERA, COMPARADA CONSIGO MISMA ----
+        val cambios = try { Pulsera.comparar(c) } catch (e: Exception) { emptyList() }
+        for (cambio in cambios) señales.add(Señal(cambio.quePasa, false))
+
+        // Pulso en reposo subido MAS andar menos: esa pareja es la que de
+        // verdad avisa. Por separado cada una puede ser cualquier cosa;
+        // juntas son el patron de alguien que se esta encontrando mal y
+        // todavia no lo ha dicho.
+        if (cambios.size >= 2) {
+            señales.add(Señal(
+                "Han cambiado varias cosas a la vez, y eso pesa más que cualquiera por separado.",
+                true
+            ))
+        }
+
+        // ---- 3. LAS PRUEBAS DE LA APP, SI LAS HAY ----
+        val hist = Historial.leer(c)
         pulsoRaro(hist)?.let { señales.add(it) }
         ritmoRepetido(hist)?.let { señales.add(it) }
         respiracionAlta(hist)?.let { señales.add(it) }

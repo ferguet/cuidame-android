@@ -17,6 +17,7 @@ import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
 import androidx.core.app.NotificationCompat
+import kotlinx.coroutines.launch
 import java.util.Calendar
 
 /**
@@ -475,14 +476,20 @@ class ServicioVigilancia : Service(), SensorEventListener {
         val ahora = System.currentTimeMillis()
         if (ahora - ajustes.ultimoAvisoTendencia < 7 * 24 * 60 * 60 * 1000L) return
 
-        val mensaje = Vigia.revisar(this) ?: return
-        ajustes.ultimoAvisoTendencia = ahora
-        val fallo = Avisador.enviar(this, mensaje)
-        Historial.añadir(
-            this, "Aviso al contacto",
-            if (fallo == null) "enviado resumen de lo que ha cambiado" else "no se pudo enviar",
-            ""
-        )
+        // Leer la pulsera tarda, asi que se hace aparte para no frenar la
+        // vigilancia de caidas mientras tanto.
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+            try {
+                val mensaje = Vigia.revisar(this@ServicioVigilancia) ?: return@launch
+                ajustes.ultimoAvisoTendencia = System.currentTimeMillis()
+                val fallo = Avisador.enviar(this@ServicioVigilancia, mensaje)
+                Historial.añadir(
+                    this@ServicioVigilancia, "Aviso al contacto",
+                    if (fallo == null) "enviado resumen de lo que ha cambiado" else "no se pudo enviar",
+                    ""
+                )
+            } catch (e: Exception) {}
+        }
     }
 
     /**

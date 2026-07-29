@@ -21,6 +21,7 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import kotlinx.coroutines.launch
 
 /**
  * LA PANTALLA DE CASA
@@ -265,14 +266,21 @@ class MainActivity : AppCompatActivity() {
         ))
 
         col.addView(botonPequeno("🔎  Ver si hoy mandaría aviso (sin enviarlo)", "#7C2D6E") {
-            val m = Vigia.revisar(this)
-            android.app.AlertDialog.Builder(this)
-                .setTitle(if (m == null) "Hoy no mandaría nada" else "Esto es lo que se enviaría")
-                .setMessage(m ?: "No hay ningún patrón que merezca avisar. Hacen falta varias " +
-                    "mediciones guardadas para que esto pueda decir algo: mídase el pulso y el " +
-                    "equilibrio unos cuantos días y vuelva a probar.")
-                .setPositiveButton("Entendido", null)
-                .show()
+            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+                val m = try {
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        Vigia.revisar(this@MainActivity)
+                    }
+                } catch (e: Exception) { null }
+                android.app.AlertDialog.Builder(this@MainActivity)
+                    .setTitle(if (m == null) "Hoy no mandaría nada" else "Esto es lo que se enviaría")
+                    .setMessage(m ?: "No hay ningún patrón que merezca avisar.\n\n" +
+                        "Lo que más peso tiene son los datos de la pulsera, y para compararlos " +
+                        "hacen falta al menos un par de semanas puestos. Las pruebas del móvil " +
+                        "(pulso, equilibrio) suman cuando las hay, pero no son imprescindibles.")
+                    .setPositiveButton("Entendido", null)
+                    .show()
+            }
         })
 
         col.addView(botonPequeno("📍  Ver qué contestaría (sin enviar nada)", "#0E7490") {

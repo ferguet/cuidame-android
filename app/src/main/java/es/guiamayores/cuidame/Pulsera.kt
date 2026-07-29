@@ -138,6 +138,94 @@ object Pulsera {
     }
 
     /**
+     * ¿SE LA ESTA PONIENDO? Y ADEMAS, ¿SIGUE LLEGANDO EL DATO?
+     *
+     * Esta es la pregunta mas importante de todas y casi nadie la hace.
+     * Todo lo que mide una pulsera vale cero si esta en un cajon. Y si un
+     * dia deja de llegar el dato, la familia se queda tan tranquila
+     * creyendo que se vigila, que es el fallo que llevamos toda la semana
+     * persiguiendo en esta app.
+     *
+     * Se responde SIN bluetooth y sin ningun permiso nuevo: una pulsera
+     * solo mide el pulso cuando la llevas puesta -si esta en la mesilla no
+     * tiene contra que medir-. Asi que si hay muestras de pulso recientes,
+     * es que la lleva puesta. Y si no llega ninguna en muchas horas, algo
+     * pasa: se la ha quitado, se quedo sin bateria, o la app de la pulsera
+     * ha dejado de sincronizar.
+     *
+     * @return horas desde la ultima medida de pulso, o null si no hay nada.
+     */
+    suspend fun horasDesdeElUltimoDato(c: Context): Double? {
+        val cl = cliente(c) ?: return null
+        return try {
+            val ahora = Instant.now()
+            val filtro = TimeRangeFilter.between(ahora.minus(4, ChronoUnit.DAYS), ahora)
+            val ultima = cl.readRecords(ReadRecordsRequest(HeartRateRecord::class, filtro))
+                .records.maxOfOrNull { it.endTime } ?: return null
+            ChronoUnit.MINUTES.between(ultima, ahora) / 60.0
+        } catch (e: Exception) { null }
+    }
+
+    /**
+     * COMPARAR A LA PERSONA CONSIGO MISMA, NO CON UNA TABLA.
+     *
+     * Un pulso en reposo de 78 no dice nada suelto: para una persona es lo
+     * de siempre y para otra es una señal. Lo que dice algo es que HOY
+     * este ocho latidos por encima de lo que ha sido su normal las ultimas
+     * tres semanas.
+     *
+     * Por eso todo lo que decide esta app se compara contra el propio
+     * historial de la persona. Las tablas de valores normales estan hechas
+     * con poblacion general y no sirven para alguien de ochenta y cinco
+     * años con tres pastillas.
+     */
+    class Comparacion(
+        val quePasa: String,
+        val reciente: Double,
+        val normal: Double
+    )
+
+    suspend fun comparar(c: Context): List<Comparacion> {
+        val dias = ultimosDias(c, 21)
+        val fuera = mutableListOf<Comparacion>()
+
+        fun mirar(
+            nombre: String,
+            saca: (Dia) -> Double?,
+            subeEsMalo: Boolean,
+            cuantoCambio: Double,
+            texto: (Double, Double) -> String
+        ) {
+            val recientes = dias.take(3).mapNotNull(saca)
+            val base = dias.drop(4).mapNotNull(saca)
+            if (recientes.size < 2 || base.size < 7) return
+            val a = recientes.average()
+            val b = base.average()
+            if (b <= 0.0) return
+            val cambio = (a - b) / b
+            val salta = if (subeEsMalo) cambio > cuantoCambio else cambio < -cuantoCambio
+            if (salta) fuera.add(Comparacion(texto(a, b), a, b))
+        }
+
+        mirar("pulso", { it.pulsoReposo?.toDouble() }, true, 0.12) { a, b ->
+            "El pulso en reposo le ha subido: estos días ${a.toInt()} por minuto, " +
+            "cuando lo normal en él/ella era ${b.toInt()}."
+        }
+        mirar("pasos", { it.pasos?.toDouble() }, false, 0.35) { a, b ->
+            "Anda bastante menos: ${a.toInt()} pasos al día frente a los ${b.toInt()} " +
+            "de las semanas anteriores."
+        }
+        mirar("sueñoMenos", { it.minutosDormido?.toDouble() }, false, 0.25) { a, b ->
+            "Duerme bastante menos: ${(a / 60).toInt()}h frente a las ${(b / 60).toInt()}h de antes."
+        }
+        mirar("sueñoMas", { it.minutosDormido?.toDouble() }, true, 0.30) { a, b ->
+            "Duerme bastante más de lo que solía: ${(a / 60).toInt()}h frente a ${(b / 60).toInt()}h. " +
+            "Dormir de más también avisa, sobre todo si además anda menos."
+        }
+        return fuera
+    }
+
+    /**
      * La frase que de verdad sirve: ¿va a peor?
      *
      * Compara los tres ultimos dias con los cuatro anteriores. No es
