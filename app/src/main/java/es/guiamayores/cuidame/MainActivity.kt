@@ -122,6 +122,9 @@ class MainActivity : AppCompatActivity() {
         col.addView(botonIcono("⚖️", "El equilibrio", "Aguantar de pie, con algo donde agarrarse",
             "#B45309") { startActivity(Intent(this, EquilibrioActivity::class.java)) })
 
+        col.addView(botonIcono("⌚", "La pulsera", "Pasos, pulso y sueño de la pulsera",
+            "#1E5F8E") { startActivity(Intent(this, PulseraActivity::class.java)) })
+
         col.addView(botonIcono("📋", "Mis mediciones", "Lo medido otros días, para el médico",
             "#0F766E") { startActivity(Intent(this, HistorialActivity::class.java)) })
 

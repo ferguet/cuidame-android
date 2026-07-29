@@ -56,6 +56,13 @@
          saca un unico numero -el brillo medio- y se tira al instante. -->
     <uses-permission android:name="android.permission.CAMERA" />
 
+    <!-- LEER LO QUE LA PULSERA DEJA EN HEALTH CONNECT.
+         Solo lectura y solo estas tres cosas. No se escribe nada, no se
+         pide nada mas, y todo se queda en el movil. -->
+    <uses-permission android:name="android.permission.health.READ_HEART_RATE" />
+    <uses-permission android:name="android.permission.health.READ_STEPS" />
+    <uses-permission android:name="android.permission.health.READ_SLEEP" />
+
     <uses-feature android:name="android.hardware.sensor.accelerometer" android:required="true" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.camera.flash" android:required="false" />
@@ -116,6 +123,28 @@
             android:name=".TemblorActivity"
             android:exported="false"
             android:screenOrientation="portrait" />
+
+        <!-- Android obliga a que la app pueda explicar POR QUE pide datos
+             de salud, y con razon: son los datos mas delicados que hay. -->
+        <activity
+            android:name=".PulseraActivity"
+            android:exported="true"
+            android:screenOrientation="portrait">
+            <intent-filter>
+                <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE" />
+            </intent-filter>
+        </activity>
+
+        <activity-alias
+            android:name="ViewPermissionUsageActivity"
+            android:exported="true"
+            android:targetActivity=".PulseraActivity"
+            android:permission="android.permission.START_VIEW_PERMISSION_USAGE">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW_PERMISSION_USAGE" />
+                <category android:name="android.intent.category.HEALTH_PERMISSIONS" />
+            </intent-filter>
+        </activity-alias>
 
         <activity
             android:name=".EquilibrioActivity"
