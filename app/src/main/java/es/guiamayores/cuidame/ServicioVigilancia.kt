@@ -11,6 +11,8 @@ import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
+import android.hardware.TriggerEvent
+import android.hardware.TriggerEventListener
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
@@ -49,8 +51,44 @@ class ServicioVigilancia : Service(), SensorEventListener {
     private var wakeLock: PowerManager.WakeLock? = null
 
     private var rearmarDesde = 0L
-    private var ultimaComprobacionQuietud = 0L
     private var coche: ModoCoche? = null
+
+    private var movimientoFuerte: Sensor? = null
+    private var rapido = false
+    private val reloj = android.os.Handler(android.os.Looper.getMainLooper())
+
+    /**
+     * Las comprobaciones que no dependen del acelerometro.
+     *
+     * Antes vivian dentro de onSensorChanged, y eso era un fallo escondido:
+     * en cuanto la app deja de leer el acelerometro para ahorrar bateria,
+     * esas comprobaciones dejarian de hacerse. Y justo la mas importante
+     * -llevar horas sin moverse- es la que hace falta precisamente cuando
+     * NO llegan lecturas. Depender del movimiento para vigilar la falta de
+     * movimiento no puede funcionar.
+     */
+    private val tareaDelMinuto = object : Runnable {
+        override fun run() {
+            val ahora = System.currentTimeMillis()
+            try {
+                coche?.latido(rapido)
+                comprobarBateria()
+                aprenderDondeDuerme()
+                if (coche?.estado != ModoCoche.Estado.CONDUCIENDO) {
+                    comprobarInmovilidad(ahora)
+                } else {
+                    detector.marcarMovimiento(ahora)
+                }
+                // Tres minutos sin moverse y se baja de marcha.
+                if (rapido && !AlarmaActivity.visible &&
+                    coche?.estado != ModoCoche.Estado.CONDUCIENDO &&
+                    ahora - detector.ultimoMovimiento > 3 * 60_000L
+                ) modoReposo()
+                refrescarAviso()
+            } catch (e: Exception) {}
+            reloj.postDelayed(this, 60_000L)
+        }
+    }
 
     companion object {
         const val CANAL = "cuidame_vigilancia"
@@ -130,39 +168,20 @@ class ServicioVigilancia : Service(), SensorEventListener {
         crearCanal()
         startForeground(ID_AVISO, construirAviso("Vigilando por usted"))
 
-        // Sin esto, algunos moviles duermen el sensor a los pocos minutos
-        // de apagar la pantalla y la vigilancia se queda muerta sin avisar.
         val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
         wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "cuidame:vigilancia").apply {
             setReferenceCounted(false)
-            acquire()
         }
 
         // El umbral del golpe se ajusta a lo que ESTE movil sabe medir.
         // Un sensor de rango corto nunca llegaria a un umbral fijo alto,
         // y la app se pasaria la vida sin detectar nada.
+        detector.umbralGolpe = ajustes.fuerzaGolpe.toFloat()
         detector.ajustarAlSensor(acelerometro?.maximumRange ?: 0f)
 
-        acelerometro?.let {
-            // EL SEGUNDO NUMERO -el cero- ES EL QUE QUITA EL RETRASO.
-            //
-            // Con la pantalla apagada, Android agrupa las lecturas de los
-            // sensores y las entrega a ratos, en paquetes, para gastar
-            // menos bateria. Para contar pasos es perfecto; para detectar
-            // una caida es fatal: el golpe ya ha pasado y la app se entera
-            // varios segundos despues. Era la causa principal de que la
-            // alarma tardara tanto en saltar con el movil bloqueado.
-            //
-            // Ese cero es el "tiempo maximo que puedes retenerme una
-            // lectura": ninguno. Que lleguen segun ocurren.
-            //
-            // Y se baja de FASTEST a GAME (unas 50 por segundo) a
-            // proposito: con un umbral de 19 y golpes reales que pasan de
-            // 100, 50 lecturas por segundo sobran para verlo, y asi no se
-            // come la bateria de una app que tiene que aguantar todo el
-            // dia encendida.
-            sensores.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME, 0)
-        }
+        movimientoFuerte = sensores.getDefaultSensor(Sensor.TYPE_SIGNIFICANT_MOTION)
+        reloj.postDelayed(tareaDelMinuto, 60_000L)
+        modoRapido()
 
         // La luz y la proximidad se leen despacio -no cambian deprisa y no
         // merece la pena gastar bateria- pero se leen SIEMPRE, para que en
@@ -181,6 +200,88 @@ class ServicioVigilancia : Service(), SensorEventListener {
         activo = true
     }
 
+    // =================================================================
+    //  LAS DOS MARCHAS: DE DONDE VENIA EL GASTO DE BATERIA
+    // =================================================================
+    //
+    // La app se comia el movil, y era culpa de dos cosas que puse yo a
+    // proposito para arreglar otro problema:
+    //
+    //   1. Un "wake lock", que es literalmente un candado para que el
+    //      procesador NO SE DUERMA NUNCA. Todo el dia y toda la noche.
+    //   2. Pedirle al acelerometro cincuenta lecturas por segundo Y
+    //      ademas que no me guardara ninguna: que me despertara con cada
+    //      una. Son casi cuatro millones de despertares al dia.
+    //
+    // Lo hice para que la alarma no tardara, y funciono. Pero pagando un
+    // precio que no mencione y que resulta que era enorme.
+    //
+    // LA SALIDA: UNA CAIDA SOLO PUEDE PASAR SI ALGUIEN SE MUEVE
+    //
+    // Un movil encima de la mesa, o en la mesilla de noche, o en el bolso
+    // de alguien sentado, no se va a caer de ninguna manera. Vigilarlo
+    // cincuenta veces por segundo es tirar bateria por nada, y eso es lo
+    // que hace la app la mayor parte del dia: una persona mayor pasa
+    // muchas horas sentada.
+    //
+    // Asi que ahora hay dos marchas:
+    //
+    //   REPOSO: el acelerometro apagado, el candado del procesador
+    //     quitado, y en su lugar un sensor especial de "movimiento
+    //     importante" que va POR HARDWARE. Ese sensor no gasta
+    //     practicamente nada porque no despierta al procesador: espera
+    //     dentro del propio chip y solo avisa cuando la persona se pone en
+    //     marcha de verdad.
+    //
+    //   RAPIDO: en cuanto se detecta movimiento, todo a tope como antes.
+    //     Cincuenta lecturas por segundo, sin retenerlas, candado puesto.
+    //
+    // Y a los tres minutos sin moverse, vuelve a reposo.
+    //
+    // Lo importante: NO se pierde velocidad de aviso. Mientras la persona
+    // esta de pie y andando -que es cuando puede caerse- la app va igual
+    // de rapida que antes. Solo baja el ritmo cuando no hay nada que
+    // vigilar.
+    //
+    // Si el movil es viejo y no tiene ese sensor de hardware, se queda en
+    // rapido siempre: mejor gastar bateria que dejar de vigilar.
+
+    private fun modoRapido() {
+        if (rapido) return
+        rapido = true
+        try { movimientoFuerte?.let { sensores.cancelTriggerSensor(disparador, it) } } catch (e: Exception) {}
+        try { if (wakeLock?.isHeld != true) wakeLock?.acquire() } catch (e: Exception) {}
+        acelerometro?.let {
+            // El cero es "no me retengas ninguna lectura". Es lo que quita
+            // el retraso del aviso, y por eso solo se pide en esta marcha.
+            sensores.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME, 0)
+        }
+        detector.marcarMovimiento()
+    }
+
+    private fun modoReposo() {
+        if (!rapido) return
+        val disponible = movimientoFuerte != null
+        if (!disponible) return          // sin el sensor de hardware, no se baja el ritmo
+        rapido = false
+        try { sensores.unregisterListener(this, acelerometro) } catch (e: Exception) {}
+        try { if (wakeLock?.isHeld == true) wakeLock?.release() } catch (e: Exception) {}
+        try { sensores.requestTriggerSensor(disparador, movimientoFuerte) } catch (e: Exception) {}
+    }
+
+    /**
+     * El sensor de hardware que despierta la vigilancia.
+     *
+     * Solo salta con movimiento de persona andando, no con una vibracion
+     * ni con un golpe en la mesa. Y despues de saltar se desarma solo, por
+     * eso hay que volver a pedirlo cada vez.
+     */
+    private val disparador = object : TriggerEventListener() {
+        override fun onTrigger(evento: TriggerEvent?) {
+            modoRapido()
+        }
+    }
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACCION_PARAR) {
             ajustes.vigilanciaActiva = false
@@ -194,6 +295,8 @@ class ServicioVigilancia : Service(), SensorEventListener {
 
     override fun onDestroy() {
         activo = false
+        reloj.removeCallbacksAndMessages(null)
+        try { movimientoFuerte?.let { sensores.cancelTriggerSensor(disparador, it) } } catch (e: Exception) {}
         try { coche?.parar() } catch (e: Exception) {}
         try { sensores.unregisterListener(this) } catch (e: Exception) {}
         try { if (wakeLock?.isHeld == true) wakeLock?.release() } catch (e: Exception) {}
@@ -248,28 +351,6 @@ class ServicioVigilancia : Service(), SensorEventListener {
         // "esta encima de la persona" siempre, incluso con el movil solo.
         ultimaVida = if (hayCaida) detector.quietudUltimoIntento else detector.vidaAhora()
         ultimoMovimientoConocido = detector.ultimoMovimiento
-
-        // LAS COMPROBACIONES DE CADA MINUTO VAN ANTES QUE NADA.
-        //
-        // Estaban al final y era un fallo tonto pero grave: en cuanto se
-        // entraba en modo coche la funcion se salia antes de llegar aqui,
-        // asi que el modo coche no se apagaba nunca y el GPS se quedaba
-        // encendido para siempre. Lo que mantiene vivo un estado no puede
-        // depender de ese mismo estado.
-        if (ahora - ultimaComprobacionQuietud > 60_000L) {
-            ultimaComprobacionQuietud = ahora
-            coche?.latido(detector.vidaAhora() > 0.12f)
-            comprobarBateria()
-            aprenderDondeDuerme()
-            // Yendo en coche no se mira la inmovilidad: quien conduce
-            // esta sentado y quieto, y eso es lo normal, no una señal.
-            if (coche?.estado != ModoCoche.Estado.CONDUCIENDO) {
-                comprobarInmovilidad(ahora)
-            } else {
-                detector.marcarMovimiento(ahora)
-            }
-            refrescarAviso()
-        }
 
         // EN COCHE NO SE DETECTAN CAIDAS, Y ES A PROPOSITO.
         //

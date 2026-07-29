@@ -213,6 +213,19 @@ class MainActivity : AppCompatActivity() {
 
         col.addView(selector("Horas seguidas sin moverse", 2, 12,
             { ajustes.horasSinMoverse }, { ajustes.horasSinMoverse = it }, "h"))
+
+        col.addView(hueco(24))
+        col.addView(texto("FUERZA DEL GOLPE PARA AVISAR", 13f, Color.parseColor("#7E8AA0")))
+        col.addView(texto(
+            "Súbalo si avisa al dejar el móvil en el sofá o en la mesa. Bájelo si se cae " +
+            "de verdad y no avisa.\n\n" +
+            "Para acertar: en \"Ver los sensores en vivo\" aparece el PICO de cada golpe. " +
+            "Deje el móvil en el sofá como siempre y mire qué número sale; ponga aquí algo " +
+            "por encima de ese número.",
+            14f, Color.parseColor("#6C7689")
+        ))
+        col.addView(selector("Hace falta llegar a", 18, 34,
+            { ajustes.fuerzaGolpe }, { ajustes.fuerzaGolpe = it }, ""))
         col.addView(selector("No mirar antes de las", 5, 14,
             { ajustes.horaInicioDia }, { ajustes.horaInicioDia = it }, ":00"))
         col.addView(selector("No mirar después de las", 16, 23,

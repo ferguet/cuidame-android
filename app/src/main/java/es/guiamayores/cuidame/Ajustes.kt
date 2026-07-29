@@ -84,6 +84,26 @@ class Ajustes(contexto: Context) {
 
     fun sabeDondeEsLaCasa(): Boolean = latitudCasa != 0f || longitudCasa != 0f
 
+    /**
+     * QUE DE FUERTE TIENE QUE SER EL GOLPE PARA QUE CUENTE.
+     *
+     * Empezo en 25, lo baje a 19 porque no saltaba, y resulto que el
+     * motivo de que no saltara era otro -la app ni siquiera arrancaba el
+     * servicio-. O sea que baje el liston para arreglar algo que no tenia
+     * nada que ver, y me quedo un detector que se dispara al dejar el
+     * movil en el sofa.
+     *
+     * Vuelve a 26, pero lo importante es que ahora se puede tocar: la
+     * fuerza que mide un movil al caer depende del modelo, de si va en el
+     * bolsillo o en un bolso, y de si la casa tiene suelo duro o moqueta.
+     * No hay un numero que valga para todos y yo no puedo acertarlo a
+     * distancia. En "Ver los sensores en vivo" se ve el pico de cada
+     * golpe, asi que se puede ajustar con datos en vez de a ciegas.
+     */
+    var fuerzaGolpe: Int
+        get() = p.getInt("fuerzaGolpe", 26)
+        set(v) = p.edit().putInt("fuerzaGolpe", v.coerceIn(18, 34)).apply()
+
     /** Para no repetir el aviso de bateria una y otra vez. */
     var avisadaBateria: Boolean
         get() = p.getBoolean("avisadaBateria", false)
