@@ -47,6 +47,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var cTelefono: EditText
     private lateinit var permisos: TextView
     private lateinit var arrancarAqui: Button
+    private lateinit var ahorro: TextView
 
     private val PERMISOS = 100
 
@@ -208,6 +209,33 @@ class MainActivity : AppCompatActivity() {
         // y sale poco de casa necesita mucho mas margen que quien tiene a
         // alguien entrando y saliendo, y quien se levanta a las once no
         // puede tener la misma hora de arranque que quien madruga.
+        // ---- EL AHORRO DE BATERIA DEL MOVIL ----
+        //
+        // Esto va aqui arriba, antes que ningun ajuste fino, porque si no
+        // esta hecho lo demas da igual: el movil cerrara la app y no
+        // vigilara nada. Y es lo unico de toda la app que no puedo
+        // arreglar yo desde el codigo, tiene que darlo la persona.
+        col.addView(hueco(30))
+        col.addView(texto("AHORRO DE BATERÍA DEL MÓVIL", 13f, Color.parseColor("#7E8AA0")))
+        ahorro = texto("", 15f, Color.parseColor("#6C7689"))
+        col.addView(ahorro)
+        col.addView(botonPequeno("🔋  Quitarle el ahorro de batería a Cuídame", "#B45309") {
+            try {
+                startActivity(Intent(
+                    android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                    android.net.Uri.parse("package:$packageName")
+                ))
+            } catch (e: Exception) {
+                try {
+                    startActivity(Intent(
+                        android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+                } catch (e2: Exception) {
+                    Toast.makeText(this,
+                        "Ajustes > Batería > Cuídame > Sin restricciones", Toast.LENGTH_LONG).show()
+                }
+            }
+        })
+
         col.addView(hueco(30))
         col.addView(texto("AVISAR SI NO SE MUEVE", 13f, Color.parseColor("#7E8AA0")))
         col.addView(texto(
@@ -358,6 +386,19 @@ class MainActivity : AppCompatActivity() {
                 arrancarAqui.text = "GUARDAR Y EMPEZAR A VIGILAR"
                 pintar(arrancarAqui, Color.parseColor("#0B7A3B"))
             }
+        }
+
+        if (::ahorro.isInitialized) {
+            val libre = Vigilante.sinAhorroDeBateria(this)
+            ahorro.text = if (libre)
+                "✅ Hecho. El móvil no va a cerrar la app para ahorrar batería."
+            else
+                "❌ SIN HACER. Este móvil puede cerrar la app a las pocas horas para ahorrar " +
+                "batería, y entonces dejaría de vigilar sin avisar. Es lo más importante de " +
+                "toda esta pantalla. Toque el botón de abajo y elija \"Permitir\"."
+            ahorro.setTextColor(
+                if (libre) Color.parseColor("#4ADE80") else Color.parseColor("#F87171")
+            )
         }
 
         val sms = tienePermiso(Manifest.permission.SEND_SMS)

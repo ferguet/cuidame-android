@@ -18,6 +18,11 @@ class ArranqueReceiver : BroadcastReceiver() {
         val ajustes = Ajustes(contexto)
         if (ajustes.vigilanciaActiva && ajustes.estaConfigurada()) {
             ServicioVigilancia.arrancar(contexto)
+            // Y se rearma tambien el vigilante: las alarmas del sistema se
+            // borran al apagar el movil, asi que si no se vuelven a poner
+            // aqui, despues de un reinicio nos quedariamos sin la red de
+            // seguridad justo cuando mas falta hace.
+            Vigilante.programar(contexto)
         }
     }
 }

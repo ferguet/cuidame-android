@@ -51,6 +51,13 @@
          se apaga por la noche y amanece sin vigilar es una trampa. -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
+    <!-- PEDIR QUE EL MOVIL NO CIERRE LA APP PARA AHORRAR BATERIA.
+         Sin esto, Xiaomi, Huawei y compañia cierran el servicio a las
+         pocas horas y la app dice "vigilando" con el motor apagado. Es
+         el unico ajuste de toda la app que no puedo poner yo: tiene que
+         concederlo la persona. -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+
     <!-- Solo para medir el pulso apoyando el dedo en la lente. La imagen
          nunca se enseña, no se graba y no sale del movil: de cada foto se
          saca un unico numero -el brillo medio- y se tira al instante. -->
@@ -176,6 +183,13 @@
                 <action android:name="android.provider.Telephony.SMS_RECEIVED" />
             </intent-filter>
         </receiver>
+
+        <!-- El vigilante del vigilante. Lo despierta una alarma del
+             sistema cada cuarto de hora: como la alarma la guarda Android
+             y no la app, sobrevive a que el movil mate el proceso. -->
+        <receiver
+            android:name=".Vigilante"
+            android:exported="false" />
 
         <receiver
             android:name=".ArranqueReceiver"

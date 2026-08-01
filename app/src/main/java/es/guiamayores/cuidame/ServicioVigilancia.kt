@@ -72,6 +72,11 @@ class ServicioVigilancia : Service(), SensorEventListener {
         override fun run() {
             val ahora = System.currentTimeMillis()
             try {
+                // EL LATIDO. Es la prueba de que esto sigue vivo, y se
+                // escribe en disco para que sobreviva a que el movil mate
+                // el proceso. Sin el, nadie podria saber que la app dejo
+                // de vigilar ni cuanto tiempo estuvo parada.
+                ajustes.ultimoLatido = ahora
                 coche?.latido(rapido)
                 comprobarBateria()
                 aprenderDondeDuerme()
@@ -199,6 +204,10 @@ class ServicioVigilancia : Service(), SensorEventListener {
         // para que en el momento del susto suene sin un segundo de espera.
         Sirena.preparar(this)
         coche = ModoCoche(this)
+        // El vigilante del vigilante: una alarma del sistema que comprueba
+        // cada cuarto de hora que esto sigue vivo, y lo resucita si no.
+        Vigilante.programar(this)
+        ajustes.ultimoLatido = System.currentTimeMillis()
         activo = true
     }
 

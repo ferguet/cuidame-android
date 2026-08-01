@@ -104,6 +104,23 @@ class Ajustes(contexto: Context) {
         get() = p.getInt("fuerzaGolpe", 26)
         set(v) = p.edit().putInt("fuerzaGolpe", v.coerceIn(18, 34)).apply()
 
+    /**
+     * La ultima vez que el servicio dio señales de vida.
+     *
+     * Se guarda en disco a proposito, no en memoria: si estuviera en
+     * memoria moriria junto con el proceso y no habria forma de saber
+     * cuanto tiempo estuvo caido. El dato tiene que sobrevivir a la muerte
+     * de quien lo escribe.
+     */
+    var ultimoLatido: Long
+        get() = p.getLong("ultimoLatido", 0L)
+        set(v) = p.edit().putLong("ultimoLatido", v).apply()
+
+    /** Para no repetir el aviso de "la app se paró" cada cuarto de hora. */
+    var ultimoAvisoCaido: Long
+        get() = p.getLong("ultimoAvisoCaido", 0L)
+        set(v) = p.edit().putLong("ultimoAvisoCaido", v).apply()
+
     /** Cuando se mando el ultimo aviso de "esto conviene mirarlo". */
     var ultimoAvisoTendencia: Long
         get() = p.getLong("ultimoAvisoTendencia", 0L)
